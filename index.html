@@ -1,0 +1,1168 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Purcel Overflow</title>
+<meta name="description" content="Tower defense: porci roz invadează biroul unui programator. Apără-l cu capse, cafea și firewall-uri.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐷</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;height:100%;background:#0d0f14;overflow:hidden;user-select:none;-webkit-user-select:none}
+canvas{position:absolute;display:block;touch-action:none;cursor:default}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+'use strict';
+// =====================================================================
+//  PURCEL OVERFLOW — tower defense cu porci, un programator și Claude
+// =====================================================================
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const W = 1280, H = 720, TS = 50, COLS = 20, ROWS = 12, MY = 60, MW = 1000, MH = 600, PX = 1000;
+const FH = '"Fredoka","Segoe UI",system-ui,sans-serif', FB = '"Nunito","Segoe UI",system-ui,sans-serif';
+let K = 1;
+function resize() {
+  const k = Math.min(innerWidth / W, innerHeight / H), dpr = window.devicePixelRatio || 1;
+  cv.style.width = W * k + 'px'; cv.style.height = H * k + 'px';
+  cv.style.left = (innerWidth - W * k) / 2 + 'px'; cv.style.top = (innerHeight - H * k) / 2 + 'px';
+  cv.width = Math.round(W * k * dpr); cv.height = Math.round(H * k * dpr); K = k * dpr;
+}
+addEventListener('resize', resize); resize();
+
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const pick = a => a[Math.floor(Math.random() * a.length)];
+function mulberry(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } }
+};
+
+// ---------------------------------------------------------------- date
+const LEVELS = [
+  { name: 'Open Space', sub: 'Prima zi la birou', theme: 'wood', money: 260, waves: 5,
+    paths: [[[-1, 2], [5, 2], [5, 8], [11, 8], [11, 3], [15, 3], [15, 6], [17, 6]]] },
+  { name: 'Sala de ședințe', sub: 'Ședința putea fi un mail', theme: 'carpet', money: 300, waves: 6,
+    paths: [[[-1, 5], [3, 5], [3, 1], [9, 1], [9, 5], [17, 5]], [[6, 12], [6, 9], [13, 9], [13, 5], [17, 5]]] },
+  { name: 'Camera serverelor', sub: 'Cald, zgomotos, plin de porci', theme: 'server', money: 340, waves: 6,
+    paths: [[[-1, 1], [16, 1], [16, 4], [2, 4], [2, 7], [17, 7]], [[9, 12], [9, 10], [14, 10], [14, 7], [17, 7]]] },
+  { name: 'Bucătăria', sub: 'Miroase a cafea și a frică', theme: 'kitchen', money: 380, waves: 7,
+    paths: [[[-1, 9], [4, 9], [4, 3], [10, 3], [10, 6], [16, 6]], [[8, -1], [8, 1], [14, 1], [14, 6], [16, 6]], [[19, 12], [19, 10], [13, 10], [13, 6], [16, 6]]] },
+  { name: 'Biroul CEO-ului', sub: 'Bătălia finală. Pentru friptură.', theme: 'marble', money: 460, waves: 7,
+    paths: [[[-1, 1], [6, 1], [6, 5], [16, 5]], [[-1, 10], [4, 10], [4, 7], [10, 7], [10, 5], [16, 5]], [[14, -1], [14, 2], [12, 2], [12, 5], [16, 5]], [[19, 12], [19, 9], [14, 9], [14, 5], [16, 5]]] },
+];
+
+const TOWERS = {
+  staple:   { name: 'Turelă capsator', desc: 'Trage capse în primul porc.', cost: 100, range: 2.7, rate: 0.45, dmg: 11 },
+  coffee:   { name: 'Cafea vărsată', desc: 'Pe traseu. Porcii alunecă încet.', cost: 40, onPath: true },
+  trap:     { name: 'Capcană de șoareci', desc: 'Pe traseu. Pac! Lovitură grea.', cost: 60, onPath: true, dmg: 60, rate: 1.0 },
+  printer:  { name: 'Imprimantă', desc: 'Aruncă ghemotoace, lovește în zonă.', cost: 170, range: 2.5, rate: 1.3, dmg: 28, splash: 0.95 },
+  firewall: { name: 'Firewall', desc: 'Arde tot ce trece pe lângă.', cost: 230, range: 1.55, dps: 24 },
+};
+const TORDER = ['staple', 'coffee', 'trap', 'printer', 'firewall'];
+const upCost = t => Math.round(TOWERS[t.type].cost * 0.8 * t.lvl);
+
+const PIGS = {
+  normal: { hp: 40, spd: 46, size: 1, reward: 4, dmg: 1 },
+  fast:   { hp: 22, spd: 92, size: 0.8, reward: 3, dmg: 1 },
+  big:    { hp: 190, spd: 30, size: 1.35, reward: 12, dmg: 3 },
+  hacker: { hp: 60, spd: 58, size: 1, reward: 8, dmg: 1, tokens: 8000 },
+  armor:  { hp: 120, spd: 40, size: 1.08, reward: 10, dmg: 2, armor: 0.4 },
+  boss:   { hp: 1600, spd: 24, size: 1.9, reward: 150, dmg: 12 },
+};
+
+const GOOD = [
+  ['npm install left-pad (al 47-lea pachet de azi)', 'Instalat! node_modules cântărește acum cât o mică planetă.'],
+  ['Șterg toate console.log("aici ajunge???")', 'Curățenie! Am găsit 214 bucăți. Una scria „ajutor”.'],
+  ['Redenumesc variabila x2_final_FINAL_v3', 'Acum se numește userCount. Lacrimi de bucurie.'],
+  ['Rulez testele. Da, și pe cel care pică din 2019', 'Au trecut toate! Mai puțin ăla. Ăla e tradiție.'],
+  ['Adaug comentarii în codul scris de tine la 3 noaptea', 'Am scris: „// nu atinge, merge și nu știm de ce”.'],
+  ['git commit -m "fix" (de data asta chiar e fix)', 'Commit făcut. Chiar era fix. Pe bune.'],
+  ['Scriu un unit test pentru funcția care adună 2+2', 'Rezultat: 4. Deocamdată.'],
+  ['Adaug dark mode. E 2026, frate', 'Ochii tăi îți mulțumesc.'],
+  ['Fac refactor la funcția de 900 de linii', 'Acum sunt 9 funcții de 100 de linii. Artă!'],
+  ['Formatez codul ca să arate a om serios', 'Prettier a rulat. Arăți ca un senior.'],
+  ['Actualizez dependențele (ține-mi pumnii)', 'Nimic n-a crăpat. Suspect, dar ok.'],
+  ['Repar bug-ul pe care l-am băgat acum 5 minute', 'Rezolvat. Nu s-a întâmplat nimic. Nimeni nu știe.'],
+  ['Scriu README.md ca să nu te mai întrebe toți', 'Documentație! Un unicorn rar în natură.'],
+  ['Adaug node_modules în .gitignore', 'Repo-ul a slăbit 3 GB. Felicitări!'],
+  ['Pun try/catch la funcția care crapă vinerea', 'Acum crapă elegant. Cu mesaj frumos.'],
+];
+const BAD = [
+  ['rm -rf / ca să fac loc pentru meme-uri', 'Am șters tot. Inclusiv meme-urile. Hopa.'],
+  ['git push --force pe main, vineri la 17:59', 'Colegii tăi te caută. Cu torțe.'],
+  ['DROP TABLE clienti; -- oricum erau prea mulți', 'Clienții au dispărut. Și bonusul tău.'],
+  ['Trimit fișierul .env pe grupul familiei', 'Mătușa are acum cheia de AWS. Și minează Bitcoin.'],
+  ['Comand 300 kg de slănină pe cardul firmei', 'Livrarea a sosit. Porcii sunt... foarte ofensați.'],
+  ['Deschid ușa principală, porcii par prietenoși', 'Nu erau prietenoși.'],
+  ['Răspund la mailul șefului doar cu „k”', 'Ședință 1-la-1 programată. Mâine la 8:00.'],
+  ['Instalez Totally-Not-A-Virus.exe de pe un forum', 'Era virus. Cine ar fi zis.'],
+  ['Schimb parola de admin în porc123', 'Porcii au ghicit-o din prima încercare.'],
+  ['Fac deploy în producție direct din Notepad', 'Producția e acum un fișier .txt.'],
+  ['Reply All la mailul cu 2000 de oameni: „merge?”', '2000 de oameni au răspuns „scoateți-mă de pe listă”.'],
+  ['Șterg node_modules... și Documents... și System32', 'Windows a plecat și el acasă.'],
+  ['Dezactivez toate testele, ca să treacă CI-ul', 'Verde peste tot! Și totul e stricat.'],
+  ['Mut toată baza de date într-un Excel', 'Excel s-a blocat. Pentru totdeauna.'],
+  ['Rescriu tot proiectul în COBOL, din plictiseală', 'Gata. Nimeni nu mai înțelege nimic. Nici eu.'],
+];
+const DENY_GOOD = ['Dar... era doar un README.', 'Ok... arunc munca la gunoi. Tokenii s-au dus.', 'Claude oftează digital.', 'Bine, o iau de la capăt. Iar.'];
+const DENY_BAD = ['Ai dreptate. Era o idee groaznică.', 'Bine prins! Mă duc să reflectez la faptele mele.', 'Mersi că m-ai oprit. Serios.', 'Ok, nu mai fac. Promit. Probabil.'];
+
+// ---------------------------------------------------------------- pregătire hărți
+const inb = (c, r) => c >= 0 && r >= 0 && c < COLS && r < ROWS;
+const grid = v => Array.from({ length: ROWS }, () => Array(COLS).fill(v));
+const LD = LEVELS.map((lv, li) => {
+  const d = { li, pathT: grid(false), blocked: grid(false), progT: grid(false) };
+  d.paths = lv.paths.map(p => p.map(([c, r]) => ({ x: c * TS + TS / 2, y: r * TS + TS / 2 + MY })));
+  d.lens = d.paths.map(pts => { let s = 0; for (let i = 1; i < pts.length; i++) s += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y); return s; });
+  lv.paths.forEach(p => {
+    for (let i = 0; i < p.length - 1; i++) {
+      let [c, r] = p[i]; const [c2, r2] = p[i + 1]; const dc = Math.sign(c2 - c), dr = Math.sign(r2 - r);
+      for (;;) { if (inb(c, r)) { d.pathT[r][c] = true; d.blocked[r][c] = true; } if (c === c2 && r === r2) break; c += dc; r += dr; }
+    }
+  });
+  const e = lv.paths[0][lv.paths[0].length - 1];
+  d.end = { c: e[0], r: e[1] }; d.prog = { c: e[0], r: e[1] - 1 };
+  for (let r = e[1] - 1; r <= e[1] + 1; r++) for (let c = e[0]; c <= e[0] + 2; c++) if (inb(c, r)) { d.blocked[r][c] = true; d.progT[r][c] = true; }
+  // distanța față de traseu
+  const dist = grid(99);
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) for (let r2 = 0; r2 < ROWS; r2++) for (let c2 = 0; c2 < COLS; c2++)
+    if (d.pathT[r2][c2] || d.progT[r2][c2]) dist[r][c] = Math.min(dist[r][c], Math.max(Math.abs(r - r2), Math.abs(c - c2)));
+  const pools = { wood: ['desk', 'desk', 'plant', 'cooler', 'shelf', 'desk', 'plant'], carpet: ['table', 'plant', 'sofa', 'plant', 'cooler', 'shelf'],
+    server: ['server', 'server', 'server', 'plant', 'cooler', 'server'], kitchen: ['fridge', 'table', 'plant', 'cooler', 'sofa', 'fridge'],
+    marble: ['sofa', 'plant', 'shelf', 'table', 'plant', 'statue'] };
+  const R = mulberry(77 + li * 31); d.decor = [];
+  for (let k = 0, tries = 0; k < 9 && tries < 400; tries++) {
+    const type = pools[lv.theme][Math.floor(R() * pools[lv.theme].length)];
+    const w = ['desk', 'sofa', 'table', 'shelf'].includes(type) ? 2 : 1;
+    const c = Math.floor(R() * (COLS - w + 1)), r = Math.floor(R() * ROWS);
+    let ok = true; for (let i = 0; i < w; i++) if (!inb(c + i, r) || d.blocked[r][c + i] || dist[r][c + i] < 2) ok = false;
+    if (!ok) continue;
+    for (let i = 0; i < w; i++) d.blocked[r][c + i] = true;
+    d.decor.push({ type, c, r, w, seed: R() }); k++;
+  }
+  d.entries = lv.paths.map(p => {
+    const [c0, r0] = p[0], [c1, r1] = p[1];
+    return { c: c0 + Math.sign(c1 - c0), r: r0 + Math.sign(r1 - r0), dc: Math.sign(c1 - c0), dr: Math.sign(r1 - r0) };
+  });
+  return d;
+});
+
+function makeWave(li, w, nPaths, last) {
+  const R = mulberry(1000 + li * 53 + w * 7), n = Math.round(8 + w * 2.6 + li * 4), out = [];
+  const gap = Math.max(0.3, 0.95 - 0.07 * li - 0.045 * w);
+  for (let i = 0; i < n; i++) {
+    const x = R(); let t = 'normal';
+    if (w >= 1 && x < 0.24) t = 'fast';
+    else if ((li >= 1 || w >= 3) && x > 0.84) t = 'big';
+    else if (li >= 1 && x > 0.58 && x <= 0.70) t = 'hacker';
+    else if (li >= 2 && x > 0.70 && x <= 0.84) t = 'armor';
+    out.push({ d: i === 0 ? 1 : gap * (R() < 0.22 ? 0.35 : 1), type: t, path: Math.floor(R() * nPaths) });
+  }
+  if (last && li >= 2) { out.push({ d: 2.5, type: 'boss', path: 0 }); if (li === 4) out.push({ d: 4, type: 'boss', path: 2 % nPaths }); }
+  return out;
+}
+
+// ---------------------------------------------------------------- AUDIO (sintetizat, fără fișiere)
+const AU = { ctx: null, music: store.get('po_music', true), sfx: store.get('po_sfx', true), last: {} };
+function audioInit() {
+  if (AU.ctx) { if (AU.ctx.state !== 'running') AU.ctx.resume(); return; }
+  const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+  const A = new AC(); AU.ctx = A;
+  AU.master = A.createGain(); AU.master.gain.value = 0.9; AU.master.connect(A.destination);
+  AU.mg = A.createGain(); AU.mg.gain.value = AU.music ? 0.3 : 0; AU.mg.connect(AU.master);
+  AU.sg = A.createGain(); AU.sg.gain.value = AU.sfx ? 0.55 : 0; AU.sg.connect(AU.master);
+  const b = A.createBuffer(1, A.sampleRate, A.sampleRate), dd = b.getChannelData(0);
+  for (let i = 0; i < dd.length; i++) dd[i] = Math.random() * 2 - 1;
+  AU.noise = b; AU.next = A.currentTime + 0.15; AU.step = 0; setInterval(sched, 50);
+}
+function env(g, t, a, peak, dur) { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); }
+function osc(type, f, t, dur, vol, dest, f2, filt) {
+  const A = AU.ctx, o = A.createOscillator(); o.type = type; o.frequency.setValueAtTime(f, t);
+  if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+  const g = A.createGain(); env(g, t, Math.min(0.02, dur / 4), vol, dur); let n = o;
+  if (filt) { const fl = A.createBiquadFilter(); fl.type = filt[0]; fl.frequency.value = filt[1]; fl.Q.value = filt[2] || 1; o.connect(fl); n = fl; }
+  n.connect(g); g.connect(dest || AU.sg); o.start(t); o.stop(t + dur + 0.05);
+}
+function nz(t, dur, vol, ft, freq, dest, q) {
+  const A = AU.ctx, s = A.createBufferSource(); s.buffer = AU.noise;
+  const f = A.createBiquadFilter(); f.type = ft; f.frequency.value = freq; f.Q.value = q || 1;
+  const g = A.createGain(); env(g, t, 0.003, vol, dur); s.connect(f); f.connect(g); g.connect(dest || AU.sg);
+  s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.05);
+}
+const SFX = {
+  oink: t => { const p = 0.8 + Math.random() * 0.5; osc('sawtooth', 380 * p, t, 0.16, 0.2, null, 190 * p, ['bandpass', 900, 2.5]); osc('sawtooth', 300 * p, t + 0.13, 0.12, 0.14, null, 170 * p, ['bandpass', 800, 2.5]); },
+  squeal: t => { const p = 0.9 + Math.random() * 0.4; osc('sawtooth', 700 * p, t, 0.22, 0.14, null, 1150 * p, ['bandpass', 1400, 3]); },
+  staple: t => { nz(t, 0.04, 0.22, 'highpass', 3000); osc('square', 1800, t, 0.03, 0.03); },
+  snap: t => { nz(t, 0.08, 0.5, 'bandpass', 1800, null, 2); osc('sine', 140, t, 0.15, 0.4, null, 50); },
+  paper: t => { nz(t, 0.12, 0.2, 'bandpass', 2500, null, 0.8); },
+  thud: t => { osc('sine', 160, t, 0.12, 0.25, null, 70); nz(t, 0.1, 0.15, 'lowpass', 900); },
+  fire: t => { nz(t, 0.3, 0.07, 'lowpass', 900); },
+  coin: t => { osc('square', 988, t, 0.07, 0.05); osc('square', 1319, t + 0.07, 0.14, 0.05); },
+  place: t => { osc('sine', 220, t, 0.14, 0.35, null, 110); nz(t, 0.06, 0.15, 'lowpass', 600); },
+  upgrade: t => { [523, 659, 784, 1047].forEach((f, i) => osc('triangle', f, t + i * 0.06, 0.12, 0.12)); },
+  sell: t => { osc('triangle', 784, t, 0.08, 0.1); osc('triangle', 523, t + 0.08, 0.12, 0.1); },
+  click: t => { osc('triangle', 660, t, 0.05, 0.07); },
+  error: t => { osc('square', 180, t, 0.12, 0.06); osc('square', 150, t + 0.1, 0.14, 0.06); },
+  wave: t => { [196, 247, 294].forEach((f, i) => osc('sawtooth', f, t + i * 0.12, 0.4, 0.1, null, null, ['lowpass', 1300])); },
+  hit: t => { osc('sine', 120, t, 0.25, 0.5, null, 40); nz(t, 0.15, 0.3, 'lowpass', 400); osc('square', 220, t + 0.02, 0.18, 0.05, null, 140); },
+  ding: t => { osc('sine', 1047, t, 0.5, 0.14); osc('sine', 1568, t + 0.09, 0.6, 0.1); },
+  good: t => { [523, 659, 784, 1047, 1319].forEach((f, i) => osc('triangle', f, t + i * 0.07, 0.22, 0.13)); },
+  bad: t => { osc('sawtooth', 110, t, 0.7, 0.25, null, 50, ['lowpass', 800]); nz(t, 0.7, 0.55, 'lowpass', 500); osc('square', 90, t + 0.1, 0.4, 0.08); },
+  sad: t => { osc('triangle', 392, t, 0.25, 0.12, null, 370); osc('triangle', 349, t + 0.25, 0.25, 0.12, null, 330); osc('triangle', 294, t + 0.5, 0.6, 0.12, null, 262); },
+  win: t => { [523, 659, 784, 659, 784, 1047].forEach((f, i) => osc('square', f, t + i * 0.12, 0.2, 0.06, null, null, ['lowpass', 3000])); },
+  lose: t => { [392, 370, 349, 330].forEach((f, i) => osc('triangle', f, t + i * 0.25, 0.3, 0.15)); osc('sine', 110, t + 1, 0.8, 0.2, null, 60); },
+  boss: t => { osc('sawtooth', 80, t, 1.2, 0.25, null, 55, ['lowpass', 400]); osc('sawtooth', 300, t + 0.1, 0.7, 0.12, null, 150, ['bandpass', 700, 2]); },
+};
+function sfx(name, gap = 0.04) {
+  if (!AU.ctx || !AU.sfx) return; const now = AU.ctx.currentTime;
+  if (AU.last[name] && now - AU.last[name] < gap) return; AU.last[name] = now; SFX[name](now);
+}
+const gsfx = (g, n, gap) => { if (!g.demo) sfx(n, gap); };
+// muzică lo-fi
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+const CH = [[50, 53, 57, 60, 64], [43, 50, 53, 57, 59], [48, 52, 55, 59, 62], [45, 52, 55, 60, 64]];
+const MEL = [[69, 0, 72, 0, 74, 72, 0, 69], [67, 0, 0, 71, 0, 74, 72, 0], [72, 0, 76, 74, 0, 72, 71, 0], [69, 0, 67, 0, 64, 0, 0, 0]];
+function pad(f, t, dur) {
+  const A = AU.ctx, o = A.createOscillator(); o.type = 'triangle'; o.frequency.value = f; o.detune.value = (Math.random() - 0.5) * 14;
+  const fl = A.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = 900; const g = A.createGain();
+  g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.033, t + 0.5); g.gain.linearRampToValueAtTime(0.022, t + dur * 0.7); g.gain.linearRampToValueAtTime(0.0001, t + dur);
+  o.connect(fl); fl.connect(g); g.connect(AU.mg); o.start(t); o.stop(t + dur + 0.05);
+}
+function sched() {
+  const A = AU.ctx; if (!A || A.state !== 'running') return;
+  const spb = 60 / 84 / 2;
+  if (AU.next < A.currentTime) AU.next = A.currentTime + 0.05;
+  while (AU.next < A.currentTime + 0.3) {
+    const s = AU.step, bar = Math.floor(s / 8) % 4, i = s % 8, t = AU.next + (i % 2 ? spb * 0.14 : 0), mg = AU.mg;
+    const intense = scr === 'play' && G && G.state === 'wave';
+    if (i === 0) CH[bar].forEach(m => pad(mtof(m), t, spb * 8));
+    if (i === 0 || i === 5) osc('sine', mtof(CH[bar][0] - 12), t, spb * 1.8, 0.2, mg);
+    if (i === 0 || i === 4 || (intense && i === 7)) osc('sine', 120, t, 0.14, 0.33, mg, 45);
+    if (i === 2 || i === 6) nz(t, 0.12, 0.07, 'bandpass', 1800, mg, 0.7);
+    nz(t, 0.03, intense ? 0.05 : 0.03, 'highpass', 7000, mg);
+    const ph = Math.floor(s / 32);
+    const m = MEL[ph % 2 ? bar : (bar + 2) % 4][i];
+    if (m && ph % 3 !== 2) osc('triangle', mtof(m), t, spb * 1.6, 0.055, mg, null, ['lowpass', 2200]);
+    AU.next += spb; AU.step++;
+  }
+}
+function toggleMusic() { AU.music = !AU.music; store.set('po_music', AU.music); if (AU.ctx) AU.mg.gain.setTargetAtTime(AU.music ? 0.3 : 0, AU.ctx.currentTime, 0.1); }
+function toggleSfx() { AU.sfx = !AU.sfx; store.set('po_sfx', AU.sfx); if (AU.ctx) AU.sg.gain.setTargetAtTime(AU.sfx ? 0.55 : 0, AU.ctx.currentTime, 0.05); }
+
+// ---------------------------------------------------------------- desen: utilitare
+function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
+function ell(x, y, rx, ry) { ctx.beginPath(); ctx.ellipse(x, y, Math.max(0.1, rx), Math.max(0.1, ry), 0, 0, Math.PI * 2); }
+function text(s, x, y, size, color, align = 'left', font = FB, weight = '700') {
+  ctx.font = `${weight} ${size}px ${font}`; ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = 'middle'; ctx.fillText(s, x, y);
+}
+function textS(s, x, y, size, color, align = 'center', font = FH, weight = '700', sh = 'rgba(0,0,0,.45)') {
+  text(s, x + 2, y + 3, size, sh, align, font, weight); text(s, x, y, size, color, align, font, weight);
+}
+function wrap(s, maxW, size, font = FB, weight = '700') {
+  ctx.font = `${weight} ${size}px ${font}`; const words = s.split(' '), lines = []; let cur = '';
+  for (const w of words) { const t = cur ? cur + ' ' + w : w; if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; } else cur = t; }
+  if (cur) lines.push(cur); return lines;
+}
+function shade(hex, amt) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgb(${clamp((n >> 16) + amt, 0, 255)},${clamp((n >> 8 & 255) + amt, 0, 255)},${clamp((n & 255) + amt, 0, 255)})`;
+}
+function lg(x0, y0, x1, y1, stops) { const g = ctx.createLinearGradient(x0, y0, x1, y1); stops.forEach((c, i) => g.addColorStop(i / (stops.length - 1), c)); return g; }
+function rg(x, y, r0, r1, stops) { const g = ctx.createRadialGradient(x, y, r0, x, y, r1); stops.forEach((c, i) => g.addColorStop(i / (stops.length - 1), c)); return g; }
+
+// ---------------------------------------------------------------- butoane (doar click)
+let BTN = [], mouse = { x: -1, y: -1 };
+const hov = (x, y, w, h) => mouse.x >= x && mouse.x < x + w && mouse.y >= y && mouse.y < y + h;
+const region = (x, y, w, h, fn) => BTN.push({ x, y, w, h, fn });
+function button(x, y, w, h, label, fn, o = {}) {
+  const dis = o.disabled, hv = !dis && hov(x, y, w, h), c = o.color || '#4f7cff', r = o.r ?? 12, lift = hv ? 2 : 0;
+  ctx.fillStyle = 'rgba(0,0,0,.35)'; rr(x, y + 4, w, h, r); ctx.fill();
+  ctx.fillStyle = dis ? lg(0, y, 0, y + h, ['#5a606c', '#42464f']) : lg(0, y, 0, y + h, [shade(c, hv ? 34 : 16), shade(c, hv ? 4 : -22)]);
+  rr(x, y - lift, w, h, r); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.12)'; rr(x + 3, y - lift + 2, w - 6, h * 0.42, r - 2); ctx.fill();
+  text(label, x + w / 2, y + h / 2 - lift + 1, o.size || 18, dis ? '#b5b9c3' : '#fff', 'center', o.font || FH, '600');
+  if (!dis && fn) region(x, y, w, h, () => { sfx('click'); fn(); });
+}
+cv.addEventListener('pointerdown', e => {
+  e.preventDefault(); audioInit();
+  const r = cv.getBoundingClientRect(); mouse.x = (e.clientX - r.left) / r.width * W; mouse.y = (e.clientY - r.top) / r.height * H;
+  for (let i = BTN.length - 1; i >= 0; i--) { const b = BTN[i]; if (mouse.x >= b.x && mouse.x < b.x + b.w && mouse.y >= b.y && mouse.y < b.y + b.h) { b.fn(mouse.x, mouse.y); break; } }
+});
+cv.addEventListener('pointermove', e => { const r = cv.getBoundingClientRect(); mouse.x = (e.clientX - r.left) / r.width * W; mouse.y = (e.clientY - r.top) / r.height * H; });
+cv.addEventListener('pointerleave', () => { mouse.x = mouse.y = -1; });
+cv.addEventListener('contextmenu', e => e.preventDefault());
+
+// ---------------------------------------------------------------- fundaluri pre-randate
+const BG = [];
+function getBG(li) {
+  if (BG[li]) return BG[li];
+  const c = document.createElement('canvas'); c.width = MW; c.height = MH;
+  const save = ctx; const x = c.getContext('2d');
+  drawBG(x, li); BG[li] = c; return c;
+}
+const RUG = {
+  wood: ['#6e2626', '#a23d3b', '#e0b04a'], carpet: ['#353c48', '#8a94a3', 'rgba(255,255,255,.35)'],
+  server: ['#e8b90f', '#3a3f47', '#20232a'], kitchen: ['#6d4f33', '#b48a5e', '#8a6845'], marble: ['#c9a227', '#b3202a', '#efcf62'],
+};
+function drawBG(x, li) {
+  const lv = LEVELS[li], d = LD[li], R = mulberry(5 + li * 19), th = lv.theme;
+  const g = (a, b, c, e, st) => { const q = x.createLinearGradient(a, b, c, e); st.forEach((s, i) => q.addColorStop(i / (st.length - 1), s)); return q; };
+  // podea
+  if (th === 'wood') {
+    for (let y = 0; y < MH; y += 25) {
+      let px = -Math.floor(R() * 200);
+      while (px < MW) {
+        const w = 120 + R() * 160, base = 150 + R() * 30;
+        x.fillStyle = g(0, y, 0, y + 25, [`rgb(${base + 40},${base - 10},${base - 60})`, `rgb(${base + 25},${base - 25},${base - 72})`]);
+        x.fillRect(px, y, w, 25);
+        x.strokeStyle = 'rgba(80,45,20,.18)'; x.lineWidth = 1;
+        for (let k = 0; k < 3; k++) { x.beginPath(); const yy = y + 5 + R() * 15; x.moveTo(px + 4, yy); x.bezierCurveTo(px + w * 0.3, yy + R() * 4 - 2, px + w * 0.6, yy + R() * 4 - 2, px + w - 4, yy + R() * 2); x.stroke(); }
+        x.fillStyle = 'rgba(60,30,10,.35)'; x.fillRect(px, y, 1.5, 25); px += w;
+      }
+      x.fillStyle = 'rgba(60,30,10,.3)'; x.fillRect(0, y, MW, 1.2);
+    }
+  } else if (th === 'carpet') {
+    x.fillStyle = '#56657a'; x.fillRect(0, 0, MW, MH);
+    for (let i = 0; i < 9000; i++) { x.fillStyle = R() < 0.5 ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.07)'; x.fillRect(R() * MW, R() * MH, 2, 2); }
+    x.strokeStyle = 'rgba(0,0,0,.12)'; for (let i = 0; i <= MW; i += 100) { x.beginPath(); x.moveTo(i, 0); x.lineTo(i, MH); x.stroke(); }
+    for (let i = 0; i <= MH; i += 100) { x.beginPath(); x.moveTo(0, i); x.lineTo(MW, i); x.stroke(); }
+  } else if (th === 'server') {
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      const v = 44 + R() * 6; x.fillStyle = g(c * TS, r * TS, c * TS + TS, r * TS + TS, [`rgb(${v + 8},${v + 12},${v + 18})`, `rgb(${v},${v + 3},${v + 8})`]);
+      x.fillRect(c * TS, r * TS, TS, TS); x.strokeStyle = 'rgba(0,0,0,.45)'; x.strokeRect(c * TS + 0.5, r * TS + 0.5, TS - 1, TS - 1);
+      if ((r * 7 + c * 3) % 5 === 0) { x.fillStyle = 'rgba(0,0,0,.35)'; for (let i = 0; i < 5; i++) for (let j = 0; j < 5; j++) x.fillRect(c * TS + 9 + i * 7, r * TS + 9 + j * 7, 3, 3); }
+    }
+  } else if (th === 'kitchen') {
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      x.fillStyle = (r + c) % 2 ? g(c * TS, r * TS, c * TS + TS, r * TS + TS, ['#f3ebdc', '#e2d6c1']) : g(c * TS, r * TS, c * TS + TS, r * TS + TS, ['#c87f5a', '#b06a48']);
+      x.fillRect(c * TS, r * TS, TS, TS);
+    }
+    x.strokeStyle = 'rgba(90,70,50,.35)'; x.lineWidth = 2;
+    for (let i = 0; i <= MW; i += TS) { x.beginPath(); x.moveTo(i, 0); x.lineTo(i, MH); x.stroke(); }
+    for (let i = 0; i <= MH; i += TS) { x.beginPath(); x.moveTo(0, i); x.lineTo(MW, i); x.stroke(); }
+  } else {
+    x.fillStyle = g(0, 0, MW, MH, ['#f2efe9', '#e2ddd4', '#efebe4']); x.fillRect(0, 0, MW, MH);
+    for (let i = 0; i < 40; i++) {
+      x.strokeStyle = `rgba(120,115,110,${0.08 + R() * 0.15})`; x.lineWidth = 0.6 + R() * 1.4; x.beginPath();
+      let px = R() * MW, py = R() * MH; x.moveTo(px, py);
+      for (let k = 0; k < 4; k++) { const nx = px + (R() - 0.3) * 160, ny = py + (R() - 0.5) * 90; x.quadraticCurveTo(px + (R() - 0.5) * 80, py + (R() - 0.5) * 80, nx, ny); px = nx; py = ny; }
+      x.stroke();
+    }
+    x.strokeStyle = 'rgba(0,0,0,.08)'; x.lineWidth = 1;
+    for (let i = 0; i <= MW; i += 100) { x.beginPath(); x.moveTo(i, 0); x.lineTo(i, MH); x.stroke(); }
+    for (let i = 0; i <= MH; i += 100) { x.beginPath(); x.moveTo(0, i); x.lineTo(MW, i); x.stroke(); }
+  }
+  // umbră pe margini (vignetă)
+  const vg = x.createRadialGradient(MW / 2, MH / 2, 250, MW / 2, MH / 2, 700); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.28)');
+  x.fillStyle = vg; x.fillRect(0, 0, MW, MH);
+  // traseu (covor)
+  const [bc, fc, sc] = RUG[th];
+  const polys = lv.paths.map(p => p.map(([c, r]) => [c * TS + TS / 2, r * TS + TS / 2]));
+  x.lineJoin = 'miter'; x.lineCap = 'butt';
+  const stroke = (w, col, dash) => polys.forEach(pts => { x.beginPath(); pts.forEach(([a, b], i) => i ? x.lineTo(a, b) : x.moveTo(a, b)); x.lineWidth = w; x.strokeStyle = col; x.setLineDash(dash || []); x.stroke(); });
+  stroke(50, 'rgba(0,0,0,.25)'); stroke(46, bc); stroke(36, fc);
+  if (th === 'server') stroke(46, '#1d1f24', [10, 10]), stroke(36, fc);
+  stroke(2.5, sc, th === 'carpet' ? [] : [14, 10]);
+  if (th === 'carpet') { stroke(28, 'rgba(255,255,255,.06)'); }
+  // capăt
+  // decor
+  d.decor.forEach(o => drawDecor(x, o, th));
+  // uși
+  d.entries.forEach(e => {
+    const cx = e.c * TS + TS / 2, cy = e.r * TS + TS / 2;
+    x.save(); x.translate(cx - e.dc * TS / 2, cy - e.dr * TS / 2);
+    if (e.dr) x.rotate(Math.PI / 2 * (e.dr > 0 ? 1 : -1)); else if (e.dc < 0) x.rotate(Math.PI);
+    x.fillStyle = '#2a2018'; x.fillRect(-6, -30, 12, 60);
+    x.fillStyle = '#7a4e2e'; x.fillRect(-4, -30, 8, 6); x.fillRect(-4, 24, 8, 6);
+    const gl = x.createLinearGradient(0, 0, 40, 0); gl.addColorStop(0, 'rgba(255,120,160,.55)'); gl.addColorStop(1, 'rgba(255,120,160,0)');
+    x.fillStyle = gl; x.fillRect(0, -23, 40, 46);
+    x.restore();
+  });
+  // ramă
+  x.strokeStyle = 'rgba(0,0,0,.6)'; x.lineWidth = 4; x.strokeRect(2, 2, MW - 4, MH - 4);
+}
+function drawDecor(x, o, th) {
+  const px = o.c * TS, py = o.r * TS, w = o.w * TS, R = mulberry(Math.floor(o.seed * 1e6));
+  const sh = () => { x.fillStyle = 'rgba(0,0,0,.25)'; x.beginPath(); x.roundRect(px + 6, py + 8, w - 6, TS - 6, 6); x.fill(); };
+  const grad = (a, b, c, e, st) => { const q = x.createLinearGradient(a, b, c, e); st.forEach((s, i) => q.addColorStop(i / (st.length - 1), s)); return q; };
+  const rad = (cx, cy, r, st) => { const q = x.createRadialGradient(cx - r * 0.3, cy - r * 0.3, 1, cx, cy, r); st.forEach((s, i) => q.addColorStop(i / (st.length - 1), s)); return q; };
+  const E = (cx, cy, rx, ry, f) => { x.beginPath(); x.ellipse(cx, cy, rx, ry, 0, 0, 7); x.fillStyle = f; x.fill(); };
+  if (o.type === 'desk') {
+    sh(); x.fillStyle = grad(px, py, px, py + 40, ['#d2a77a', '#a97a4f']); x.beginPath(); x.roundRect(px + 3, py + 4, w - 6, 34, 4); x.fill();
+    x.fillStyle = '#1e2129'; x.beginPath(); x.roundRect(px + 30, py + 7, 40, 6, 2); x.fill();
+    x.fillStyle = grad(px, py, px, py + 20, ['#2b3140', '#151821']); x.beginPath(); x.roundRect(px + 28, py + 5, 44, 26, 3); x.fill();
+    x.fillStyle = grad(px + 30, py + 7, px + 70, py + 29, ['#4a7bd8', '#7ec4ff']); x.fillRect(px + 31, py + 8, 38, 19);
+    x.fillStyle = '#dfe3ea'; x.fillRect(px + 34, py + 32, 30, 5); E(px + 82, py + 30, 4, 3, '#eee');
+    E(px + 50, py + 46, 13, 7, '#2c2f38'); E(px + 50, py + 44, 11, 5, '#3c414d');
+  } else if (o.type === 'plant') {
+    E(px + 27, py + 40, 15, 6, 'rgba(0,0,0,.25)');
+    x.fillStyle = grad(px, py + 26, px, py + 44, ['#c66b3d', '#8f4723']); x.beginPath(); x.moveTo(px + 14, py + 26); x.lineTo(px + 36, py + 26); x.lineTo(px + 33, py + 44); x.lineTo(px + 17, py + 44); x.fill();
+    for (let i = 0; i < 9; i++) { const a = R() * Math.PI * 2, r = 6 + R() * 8; E(px + 25 + Math.cos(a) * r, py + 18 + Math.sin(a) * r * 0.7, 8, 8, rad(px + 25 + Math.cos(a) * r, py + 18 + Math.sin(a) * r * 0.7, 9, ['#7fd17a', '#2f8a3e'])); }
+  } else if (o.type === 'cooler') {
+    E(px + 27, py + 42, 14, 5, 'rgba(0,0,0,.25)');
+    x.fillStyle = grad(px + 12, 0, px + 38, 0, ['#e8ecf1', '#ffffff', '#c9d0d9']); x.beginPath(); x.roundRect(px + 13, py + 18, 24, 26, 3); x.fill();
+    E(px + 25, py + 14, 11, 11, rad(px + 25, py + 14, 12, ['#d6f0ff', '#5fb4ea', '#2c7fc0'])); x.fillStyle = '#c33'; x.fillRect(px + 19, py + 30, 4, 4); x.fillStyle = '#36c'; x.fillRect(px + 27, py + 30, 4, 4);
+  } else if (o.type === 'shelf') {
+    sh(); x.fillStyle = grad(px, py, px, py + 40, ['#8a5a33', '#5e3b1f']); x.beginPath(); x.roundRect(px + 3, py + 6, w - 6, 34, 3); x.fill();
+    const cols = ['#c0392b', '#2e86c1', '#27ae60', '#f1c40f', '#8e44ad', '#e67e22', '#ecf0f1', '#16a085'];
+    for (let bx = px + 7; bx < px + w - 10; bx += 6 + Math.floor(R() * 3)) { x.fillStyle = cols[Math.floor(R() * cols.length)]; x.fillRect(bx, py + 10 + R() * 4, 5, 24); }
+  } else if (o.type === 'server') {
+    x.fillStyle = 'rgba(0,0,0,.35)'; x.fillRect(px + 6, py + 6, 42, 44);
+    x.fillStyle = grad(px, py, px + 40, py, ['#1a1d24', '#2c313b', '#1a1d24']); x.fillRect(px + 4, py + 2, 42, 44);
+    for (let i = 0; i < 6; i++) { x.fillStyle = '#11131a'; x.fillRect(px + 7, py + 5 + i * 7, 36, 5); x.fillStyle = R() < 0.5 ? '#3df07a' : (R() < 0.5 ? '#46a3ff' : '#ffb340'); x.fillRect(px + 9, py + 6 + i * 7, 3, 3); x.fillStyle = '#3df07a'; x.fillRect(px + 14, py + 6 + i * 7, 2, 3); }
+  } else if (o.type === 'sofa') {
+    sh(); x.fillStyle = grad(px, py, px, py + 40, ['#6f88a8', '#4b6283']); x.beginPath(); x.roundRect(px + 3, py + 6, w - 6, 36, 10); x.fill();
+    x.fillStyle = '#5a7194'; x.beginPath(); x.roundRect(px + 9, py + 16, w / 2 - 11, 22, 6); x.fill(); x.beginPath(); x.roundRect(px + w / 2 + 2, py + 16, w / 2 - 11, 22, 6); x.fill();
+    x.fillStyle = '#f2c14e'; x.beginPath(); x.roundRect(px + 12, py + 10, 14, 12, 4); x.fill();
+  } else if (o.type === 'table') {
+    E(px + w / 2 + 4, py + 30, w / 2 - 4, 18, 'rgba(0,0,0,.25)');
+    for (const cx of [px + 18, px + w - 18]) { E(cx, py + 8, 8, 6, '#2c2f38'); E(cx, py + 44, 8, 6, '#2c2f38'); }
+    E(px + w / 2, py + 25, w / 2 - 6, 16, rad(px + w / 2, py + 25, w / 2, ['#f5f5f5', '#c9c9c9']));
+    E(px + w / 2 - 14, py + 24, 5, 4, '#fff'); E(px + w / 2 + 16, py + 26, 6, 4, '#dfe7ef');
+  } else if (o.type === 'fridge') {
+    x.fillStyle = 'rgba(0,0,0,.3)'; x.fillRect(px + 8, py + 6, 40, 44);
+    x.fillStyle = grad(px, 0, px + 44, 0, ['#d9dee5', '#ffffff', '#b9c1cc']); x.beginPath(); x.roundRect(px + 5, py + 2, 40, 44, 4); x.fill();
+    x.fillStyle = '#8b939e'; x.fillRect(px + 5, py + 18, 40, 1.5); x.fillRect(px + 38, py + 6, 3, 9); x.fillRect(px + 38, py + 23, 3, 14);
+    x.fillStyle = '#ff6b8a'; x.fillRect(px + 12, py + 26, 8, 8);
+  } else if (o.type === 'statue') {
+    E(px + 26, py + 42, 15, 6, 'rgba(0,0,0,.3)');
+    x.fillStyle = grad(px, 0, px + 50, 0, ['#b8942c', '#f3d36b', '#a17c1d']); x.beginPath(); x.roundRect(px + 13, py + 30, 26, 12, 2); x.fill();
+    E(px + 26, py + 22, 12, 9, rad(px + 26, py + 22, 13, ['#fff0b0', '#d4ad3c', '#8f6c14'])); E(px + 35, py + 21, 5, 4, '#c9a030');
+    x.fillStyle = '#7a5a10'; x.font = 'bold 7px sans-serif'; x.textAlign = 'center'; x.fillText('CEO', px + 26, py + 39);
+  }
+}
+
+// ---------------------------------------------------------------- particule
+let FX = [], shakeT = 0, flashT = 0, flashCol = '255,60,60';
+function puff(x, y, col, n = 10) { for (let i = 0; i < n; i++) { const a = Math.random() * 7, s = 30 + Math.random() * 70; FX.push({ k: 'puff', x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, l: 0.5, m: 0.5, c: col, s: 4 + Math.random() * 5 }); } }
+function floatText(x, y, s, col, size = 16) { FX.push({ k: 'text', x, y, vx: 0, vy: -38, l: 1.3, m: 1.3, c: col, s: size, t: s }); }
+function confetti(x, y, n = 50) { const cs = ['#ff6b8a', '#ffd84d', '#4fd1a5', '#5aa9ff', '#d97757', '#ffffff']; for (let i = 0; i < n; i++) { const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.2, s = 150 + Math.random() * 260; FX.push({ k: 'conf', x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, l: 2.2, m: 2.2, c: pick(cs), s: 4 + Math.random() * 4, r: Math.random() * 7, vr: (Math.random() - 0.5) * 14 }); } }
+function smoke(x, y, n = 14) { for (let i = 0; i < n; i++) FX.push({ k: 'smoke', x: x + (Math.random() - 0.5) * 20, y, vx: (Math.random() - 0.5) * 20, vy: -30 - Math.random() * 40, l: 1.8 + Math.random(), m: 2.6, c: '', s: 8 + Math.random() * 8 }); }
+function boom(x, y) { for (let i = 0; i < 26; i++) { const a = Math.random() * 7, s = 60 + Math.random() * 180; FX.push({ k: 'spark', x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, l: 0.6, m: 0.6, c: pick(['#ffdd55', '#ff8a2a', '#ff4d2a']), s: 3 + Math.random() * 3 }); } smoke(x, y, 18); }
+function paperBits(x, y) { for (let i = 0; i < 10; i++) { const a = Math.random() * 7, s = 40 + Math.random() * 80; FX.push({ k: 'conf', x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 40, l: 0.7, m: 0.7, c: '#f4f4f0', s: 4, r: Math.random() * 7, vr: 8 }); } }
+function updateFx(dt) {
+  if (shakeT > 0) shakeT -= dt; if (flashT > 0) flashT -= dt;
+  for (const p of FX) {
+    p.l -= dt; p.x += p.vx * dt; p.y += p.vy * dt;
+    if (p.k === 'conf') { p.vy += 420 * dt; p.vx *= 0.99; p.r += p.vr * dt; }
+    else if (p.k === 'puff' || p.k === 'spark') { p.vx *= 0.9; p.vy *= 0.9; }
+    else if (p.k === 'smoke') { p.s += 14 * dt; p.vx *= 0.98; }
+  }
+  FX = FX.filter(p => p.l > 0);
+}
+function drawFx() {
+  for (const p of FX) {
+    const a = clamp(p.l / p.m, 0, 1);
+    ctx.globalAlpha = p.k === 'text' ? Math.min(1, a * 2) : a;
+    if (p.k === 'text') textS(p.t, p.x, p.y, p.s, p.c, 'center', FH, '700');
+    else if (p.k === 'conf') { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.fillStyle = p.c; ctx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); ctx.restore(); }
+    else if (p.k === 'smoke') { ctx.globalAlpha = a * 0.5; ell(p.x, p.y, p.s, p.s); ctx.fillStyle = '#6b6f78'; ctx.fill(); }
+    else { ell(p.x, p.y, p.s * (p.k === 'puff' ? 1.5 - a * 0.5 : 1), p.s * (p.k === 'puff' ? 1.5 - a * 0.5 : 1)); ctx.fillStyle = p.c; ctx.fill(); }
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ---------------------------------------------------------------- stare joc
+let scr = 'menu', G = null, DG = null, paused = false, selShop = null, selTower = null, loseReason = '';
+const progress = { unlocked: store.get('po_unlocked', 1), done: store.get('po_done', []) };
+
+function newGame(li, demo = false) {
+  return { li, demo, money: LEVELS[li].money, hp: 20, tokens: 100000, wave: 0, state: 'build', pigs: [], towers: [], projs: [],
+    queue: [], qT: 0, waveTotal: 0, req: null, nextReq: 4, canim: null, face: { type: 'normal', t: 0 }, msg: '', msgT: 0, idc: 1,
+    speed: 1, lastReq: [-1, -1], demoT: 1.5, snap: null, time: 0 };
+}
+function say(g, s, t = 4) { g.msg = s; g.msgT = t; }
+function towerAt(g, c, r) { return g.towers.find(t => t.c === c && t.r === r); }
+function canPlace(g, type, c, r) {
+  if (!inb(c, r) || towerAt(g, c, r)) return false;
+  const d = LD[g.li];
+  if (TOWERS[type].onPath) return d.pathT[r][c] && !d.progT[r][c];
+  return !d.blocked[r][c];
+}
+function placeTower(g, type, c, r) {
+  const T = TOWERS[type];
+  g.money -= T.cost; g.towers.push({ id: g.idc++, type, c, r, lvl: 1, invest: T.cost, cd: 0, ang: -Math.PI / 2, fx: 0 });
+  gsfx(g, 'place'); puff(c * TS + 25, MY + r * TS + 25, 'rgba(255,255,255,.7)', 8);
+}
+function startWave(g) {
+  if (g.state !== 'build') return;
+  const lv = LEVELS[g.li];
+  if (!g.demo) g.snap = JSON.stringify({ ...g, snap: null });
+  g.queue = makeWave(g.li, g.demo ? g.wave % 4 : g.wave, lv.paths.length, !g.demo && g.wave === lv.waves - 1);
+  g.qT = g.queue.length ? g.queue[0].d : 0; g.waveTotal = g.queue.length; g.state = 'wave'; g.nextReq = 4; g.req = null;
+  gsfx(g, 'wave'); if (!g.demo) say(g, `Valul ${g.wave + 1} a pornit! Nu-i lăsa să ajungă la programator.`);
+}
+function spawnPig(g, type, pi) {
+  const d = PIGS[type], P = LD[g.li].paths[pi][0], mult = g.demo ? 1 + 0.1 * (g.wave % 4) : 1 + 0.13 * g.wave + 0.3 * g.li;
+  g.pigs.push({ type, path: pi, seg: 0, x: P.x, y: P.y, dist: 0, hp: d.hp * mult, max: d.hp * mult, spd: d.spd * (0.92 + Math.random() * 0.16),
+    slow: 1, face: 1, anim: Math.random() * 6, flash: 0, ox: (Math.random() - 0.5) * 12, oy: (Math.random() - 0.5) * 8, id: g.idc++, dead: false });
+}
+function damage(g, p, amt) {
+  if (p.dead) return; p.hp -= amt; p.flash = 0.08;
+  if (p.hp <= 0) {
+    p.dead = true; const d = PIGS[p.type]; g.money += d.reward;
+    puff(p.x, p.y, '#ffc3d1', 10); floatText(p.x, p.y - 22, `+${d.reward} lei`, '#ffd84d', 15);
+    gsfx(g, Math.random() < 0.5 ? 'oink' : 'squeal', 0.08);
+    if (p.type === 'boss') { confetti(p.x, p.y, 40); shakeT = 0.4; }
+  }
+}
+function pigRemain(g, p) { return LD[g.li].lens[p.path] - p.dist; }
+function firstInRange(g, cx, cy, R) {
+  let best = null, bd = 1e9;
+  for (const p of g.pigs) { if (p.dead) continue; const dx = p.x - cx, dy = p.y - cy; if (dx * dx + dy * dy > R * R) continue; const rem = pigRemain(g, p); if (rem < bd) { bd = rem; best = p; } }
+  return best;
+}
+function newReq(g) {
+  const bad = Math.random() < 0.3 + 0.05 * g.li, arr = bad ? BAD : GOOD; let i;
+  do { i = Math.floor(Math.random() * arr.length); } while (i === g.lastReq[bad ? 1 : 0]);
+  g.lastReq[bad ? 1 : 0] = i; g.req = { bad, i, t: 0, max: Math.max(5, 10 - 0.8 * g.li) }; gsfx(g, 'ding');
+}
+function claudeAnim(g, type, line, sub) {
+  g.canim = { type, t: 0, line, sub };
+  const d = LD[g.li], lx = (d.prog.c + 1.5) * TS, ly = MY + (d.prog.r + 1.6) * TS;
+  if (type === 'good') { sfx('good'); confetti(PX + 140, 470, 45); g.face = { type: 'happy', t: 2.2 }; }
+  else if (type === 'bad') { sfx('bad'); shakeT = 0.6; flashT = 0.6; flashCol = '255,50,40'; boom(lx, ly); g.face = { type: 'shock', t: 2.8 }; }
+  else { sfx('sad'); g.face = { type: 'meh', t: 1.8 }; }
+}
+function answer(g, ok) {
+  const q = g.req; if (!q) return; g.req = null; g.nextReq = Math.max(2.5, 4 + Math.random() * 5 - 0.5 * g.li);
+  if (ok && !q.bad) { g.money += 20; g.tokens -= 1500; claudeAnim(g, 'good', GOOD[q.i][1], '+20 lei · −1,5k tokeni'); }
+  else if (ok && q.bad) { g.hp -= 3; g.tokens -= 10000; claudeAnim(g, 'bad', BAD[q.i][1], '−3 nervi · −10k tokeni'); }
+  else if (!ok && q.bad) { g.money += 15; claudeAnim(g, 'good', pick(DENY_BAD), 'Bine prins! +15 lei'); }
+  else { g.tokens -= 4000; claudeAnim(g, 'sad', pick(DENY_GOOD), 'Era o comandă bună · −4k tokeni'); }
+}
+function lose(reason) { loseReason = reason; scr = 'lose'; sfx('lose'); selShop = null; selTower = null; }
+function levelWin() {
+  const li = G.li; progress.done[li] = true; progress.unlocked = Math.max(progress.unlocked, Math.min(LEVELS.length, li + 2));
+  store.set('po_done', progress.done); store.set('po_unlocked', progress.unlocked);
+  sfx('win'); confetti(500, 360, 90); selShop = null; selTower = null;
+  scr = li === LEVELS.length - 1 ? 'final' : 'win';
+}
+
+function updateGame(g, dt) {
+  g.time += dt; if (g.msgT > 0) g.msgT -= dt; if (g.face.t > 0) g.face.t -= dt; else g.face.type = 'normal';
+  if (g.canim) { g.canim.t += dt; if (g.canim.t > 4) g.canim = null; }
+  if (g.demo) { g.hp = 20; if (g.state === 'build') { g.demoT -= dt; if (g.demoT <= 0) { startWave(g); g.demoT = 2; } } }
+  if (g.state !== 'wave') { for (const t of g.towers) if (t.fx > 0) t.fx -= dt; return; }
+  const d = LD[g.li];
+  // spawn
+  if (g.queue.length) {
+    g.qT -= dt;
+    while (g.queue.length && g.qT <= 0) {
+      const q = g.queue.shift(); spawnPig(g, q.type, q.path);
+      if (q.type === 'boss') { gsfx(g, 'boss'); say(g, 'A sosit PORCUL ȘEF! Pregătește tot ce ai.'); }
+      if (g.queue.length) g.qT += g.queue[0].d;
+    }
+  }
+  // Claude
+  if (!g.demo) {
+    if (!g.req) { g.nextReq -= dt; if (g.nextReq <= 0) newReq(g); }
+    else {
+      g.req.t += dt; g.tokens -= (350 + 120 * g.li) * dt;
+      if (g.req.t >= g.req.max) { g.req = null; g.tokens -= 6000; g.nextReq = 4; claudeAnim(g, 'sad', 'Am așteptat, am așteptat... și am reîncercat singur.', 'Prea încet · −6k tokeni'); }
+    }
+  }
+  // cafea -> încetinire
+  for (const p of g.pigs) p.slow = 1;
+  for (const t of g.towers) if (t.type === 'coffee') {
+    const cx = t.c * TS + 25, cy = MY + t.r * TS + 25, m = 0.5 - 0.1 * (t.lvl - 1);
+    for (const p of g.pigs) if (Math.abs(p.x - cx) < 27 && Math.abs(p.y - cy) < 27) p.slow = Math.min(p.slow, m);
+  }
+  // porci
+  for (const p of g.pigs) {
+    if (p.dead) continue;
+    p.anim += dt * 11 * p.slow; if (p.flash > 0) p.flash -= dt;
+    const pts = d.paths[p.path]; let mv = p.spd * p.slow * dt;
+    while (mv > 0 && p.seg < pts.length - 1) {
+      const a = pts[p.seg + 1], dx = a.x - p.x, dy = a.y - p.y, dd = Math.hypot(dx, dy);
+      if (Math.abs(dx) > 0.1) p.face = dx < 0 ? -1 : 1;
+      if (dd <= mv) { p.x = a.x; p.y = a.y; p.seg++; mv -= dd; p.dist += dd; } else { p.x += dx / dd * mv; p.y += dy / dd * mv; p.dist += mv; mv = 0; }
+    }
+    if (p.seg >= pts.length - 1) {
+      p.dead = true; const pd = PIGS[p.type]; puff(p.x + 20, p.y, '#ffc3d1', 8); g.face = { type: 'hurt', t: 0.8 };
+      if (!g.demo) {
+        g.hp -= pd.dmg; shakeT = Math.max(shakeT, 0.25); flashT = 0.25; flashCol = '255,60,60'; gsfx(g, 'hit', 0.1);
+        floatText(p.x + 40, p.y - 50, `−${pd.dmg} nervi`, '#ff6b6b', 18);
+        if (pd.tokens) { g.tokens -= pd.tokens; floatText(p.x + 40, p.y - 72, 'Porcul hacker a furat tokeni!', '#d97757', 15); }
+      }
+    }
+  }
+  // turnuri
+  for (const t of g.towers) {
+    const T = TOWERS[t.type], cx = t.c * TS + 25, cy = MY + t.r * TS + 25, lm = 1 + 0.6 * (t.lvl - 1);
+    if (t.cd > 0) t.cd -= dt; if (t.fx > 0) t.fx -= dt;
+    if (t.type === 'staple' || t.type === 'printer') {
+      const R = (T.range + 0.35 * (t.lvl - 1)) * TS;
+      if (t.cd <= 0) {
+        const p = firstInRange(g, cx, cy, R);
+        if (p) {
+          t.ang = Math.atan2(p.y - cy, p.x - cx); t.cd = T.rate * (1 - 0.12 * (t.lvl - 1)); t.fx = 0.12;
+          if (t.type === 'staple') {
+            g.projs.push({ k: 'staple', x: cx, y: cy, tg: p, dmg: T.dmg * lm }); gsfx(g, 'staple', 0.05);
+            if (t.lvl >= 3) { const p2 = g.pigs.find(q => !q.dead && q !== p && Math.hypot(q.x - cx, q.y - cy) < R) || p; g.projs.push({ k: 'staple', x: cx, y: cy, tg: p2, dmg: T.dmg * lm }); }
+          } else {
+            const lead = 0.45 * p.spd * p.slow, pts = d.paths[p.path], nx = pts[Math.min(p.seg + 1, pts.length - 1)];
+            const dx = nx.x - p.x, dy = nx.y - p.y, dl = Math.hypot(dx, dy) || 1, tx = p.x + dx / dl * Math.min(lead, dl), ty = p.y + dy / dl * Math.min(lead, dl);
+            g.projs.push({ k: 'paper', sx: cx, sy: cy - 10, tx, ty, t: 0, dur: 0.45, dmg: T.dmg * lm, sp: (T.splash + 0.15 * (t.lvl - 1)) * TS }); gsfx(g, 'paper', 0.1);
+          }
+        }
+      }
+    } else if (t.type === 'trap') {
+      if (t.cd <= 0) {
+        const hits = g.pigs.filter(p => !p.dead && Math.abs(p.x - cx) < 22 && Math.abs(p.y - cy) < 22);
+        if (hits.length) { (t.lvl >= 3 ? hits : [hits[0]]).forEach(p => damage(g, p, T.dmg * lm)); t.cd = T.rate * (1 - 0.15 * (t.lvl - 1)); t.fx = 0.35; gsfx(g, 'snap', 0.06); }
+      }
+    } else if (t.type === 'firewall') {
+      const R = (T.range + 0.25 * (t.lvl - 1)) * TS; let any = false;
+      for (const p of g.pigs) if (!p.dead && Math.hypot(p.x - cx, p.y - cy) < R) { damage(g, p, T.dps * lm * dt); any = true; }
+      if (any) { t.fx = 0.25; gsfx(g, 'fire', 0.28); }
+    }
+  }
+  // proiectile
+  for (const pr of g.projs) {
+    if (pr.k === 'staple') {
+      const p = pr.tg; if (p.dead) { pr.done = true; continue; }
+      const dx = p.x - pr.x, dy = p.y - pr.y, dd = Math.hypot(dx, dy), st = 700 * dt; pr.a = Math.atan2(dy, dx);
+      if (dd < st + 6) { damage(g, p, pr.dmg * (PIGS[p.type].armor || 1)); pr.done = true; if (PIGS[p.type].armor) FX.push({ k: 'spark', x: p.x, y: p.y - 6, vx: 0, vy: -40, l: 0.2, m: 0.2, c: '#fff6a0', s: 3 }); }
+      else { pr.x += dx / dd * st; pr.y += dy / dd * st; }
+    } else {
+      pr.t += dt;
+      if (pr.t >= pr.dur) {
+        pr.done = true; paperBits(pr.tx, pr.ty); gsfx(g, 'thud', 0.08);
+        for (const p of g.pigs) if (!p.dead && Math.hypot(p.x - pr.tx, p.y - pr.ty) < pr.sp) damage(g, p, pr.dmg);
+      }
+    }
+  }
+  g.projs = g.projs.filter(p => !p.done);
+  g.pigs = g.pigs.filter(p => !p.dead);
+  if (!g.demo) {
+    if (g.hp <= 0) { g.hp = 0; lose('Programatorul a cedat nervos. Porcii au câștigat.'); return; }
+    if (g.tokens <= 0) { g.tokens = 0; lose('S-au terminat tokenii! Claude a rămas fără suflu.'); return; }
+  }
+  if (!g.queue.length && !g.pigs.length) {
+    g.wave++; g.req = null; g.state = 'build'; g.projs = [];
+    if (g.demo) { g.demoT = 2; return; }
+    const lv = LEVELS[g.li], inc = 60 + 15 * g.li + Math.min(30, Math.floor(g.money / 25));
+    g.money += inc;
+    if (g.wave >= lv.waves) { levelWin(); return; }
+    say(g, `Val terminat! Salariu: +${inc} lei. Mai pune capcane și pornește valul următor.`, 6);
+    floatText(500, MY + 300, `Salariu +${inc} lei`, '#ffd84d', 34); sfx('coin');
+  }
+}
+
+// ---------------------------------------------------------------- desen: porci
+function drawPig(p, x, y, sc = 1) {
+  const d = PIGS[p.type], s = d.size * sc, f = p.face, t = p.type;
+  ctx.save(); ctx.translate(x, y);
+  ctx.fillStyle = 'rgba(0,0,0,.22)'; ell(0, 14 * s, 17 * s, 5 * s); ctx.fill();
+  ctx.scale(f * s, s);
+  const leg = Math.sin(p.anim) * 3, base = t === 'big' ? ['#ffc6d2', '#e8809d'] : t === 'boss' ? ['#ffcad6', '#e07093'] : ['#ffd5df', '#f08aa6'];
+  const dark = '#d4708e';
+  ctx.fillStyle = dark; rr(-12, 3 - leg, 6, 11, 2); ctx.fill(); rr(5, 3 + leg, 6, 11, 2); ctx.fill();
+  // coadă
+  ctx.strokeStyle = dark; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.arc(-19, -4, 4, 0.2, Math.PI * 1.7); ctx.stroke();
+  // corp
+  ctx.fillStyle = rg(-4, -6, 2, 22, [base[0], base[1]]); ell(0, 0, 18, 12.5); ctx.fill();
+  ctx.strokeStyle = 'rgba(180,80,110,.5)'; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.35)'; ell(-3, -7, 9, 3); ctx.fill();
+  ctx.fillStyle = shade('#d4708e', -8); rr(-6, 3 + leg * 0.7, 6, 11, 2); ctx.fill(); rr(10, 3 - leg * 0.7, 6, 11, 2); ctx.fill();
+  ctx.fillStyle = '#7a3a4c'; ctx.fillRect(-6, 12 + leg * 0.7, 6, 2); ctx.fillRect(10, 12 - leg * 0.7, 6, 2);
+  if (t === 'hacker') { ctx.fillStyle = lg(0, -12, 0, 12, ['#3a3f4b', '#23262e']); ell(0, -1, 17, 11.5); ctx.fill(); }
+  // cap
+  const hx = 14, hy = -5;
+  ctx.fillStyle = dark; ctx.beginPath(); ctx.moveTo(hx - 9, hy - 6); ctx.lineTo(hx - 6, hy - 16); ctx.lineTo(hx - 1, hy - 7); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(hx + 1, hy - 7); ctx.lineTo(hx + 6, hy - 16); ctx.lineTo(hx + 9, hy - 5); ctx.fill();
+  ctx.fillStyle = rg(hx - 3, hy - 4, 1, 12, [base[0], base[1]]); ell(hx, hy, 10.5, 9.5); ctx.fill();
+  ctx.fillStyle = 'rgba(255,110,140,.35)'; ell(hx + 1, hy + 4, 3.5, 2.2); ctx.fill();
+  ctx.fillStyle = lg(0, hy - 4, 0, hy + 6, ['#ffa3bb', '#e7789a']); ell(hx + 9, hy + 1.5, 5, 4.3); ctx.fill();
+  ctx.fillStyle = '#9b3c5c'; ell(hx + 7.6, hy + 1.5, 1.1, 1.6); ctx.fill(); ell(hx + 10.6, hy + 1.5, 1.1, 1.6); ctx.fill();
+  ctx.fillStyle = '#1a1014'; ell(hx + 2.5, hy - 3, 1.9, 2.2); ctx.fill(); ctx.fillStyle = '#fff'; ell(hx + 3, hy - 3.8, 0.7, 0.7); ctx.fill();
+  if (t === 'fast') { ctx.fillStyle = '#ff4d6d'; ctx.fillRect(hx - 9, hy - 7, 19, 3); ctx.fillRect(hx - 13, hy - 7, 4, 2); ctx.fillRect(hx - 14, hy - 4, 4, 2); }
+  if (t === 'hacker') { ctx.fillStyle = '#2b2f38'; ctx.beginPath(); ctx.arc(hx - 1, hy - 1, 12, Math.PI * 0.6, Math.PI * 1.65); ctx.lineTo(hx + 6, hy - 11); ctx.fill(); ctx.fillStyle = '#0c0c0f'; rr(hx - 1, hy - 5, 9, 3.5, 1.5); ctx.fill(); ctx.fillStyle = '#39ff88'; ctx.font = 'bold 6px monospace'; ctx.fillText('01', -8, 2); }
+  if (t === 'armor') { ctx.fillStyle = rg(hx - 3, hy - 9, 1, 13, ['#ff7f6e', '#c0392b']); ctx.beginPath(); ctx.arc(hx, hy - 1, 11, Math.PI * 1.02, Math.PI * 1.98); ctx.fill(); ctx.fillStyle = 'rgba(40,40,50,.8)'; ctx.fillRect(hx - 1, hy - 6, 11, 4); ctx.fillStyle = '#fff'; ctx.fillRect(hx - 6, hy - 10, 2, 5); }
+  if (t === 'big') { ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.beginPath(); ctx.moveTo(hx + 6, hy + 5); ctx.lineTo(hx + 8, hy + 10); ctx.lineTo(hx + 9, hy + 5); ctx.fill(); }
+  if (t === 'boss') {
+    ctx.fillStyle = lg(0, hy - 20, 0, hy - 8, ['#ffe680', '#e0a516']); ctx.beginPath();
+    ctx.moveTo(hx - 8, hy - 8); ctx.lineTo(hx - 8, hy - 17); ctx.lineTo(hx - 4, hy - 12); ctx.lineTo(hx, hy - 19); ctx.lineTo(hx + 4, hy - 12); ctx.lineTo(hx + 8, hy - 17); ctx.lineTo(hx + 8, hy - 8); ctx.fill();
+    ctx.fillStyle = '#e8434b'; ell(hx, hy - 12, 1.6, 1.6); ctx.fill();
+    ctx.fillStyle = '#0d0d10'; rr(hx - 1, hy - 5, 10, 3.5, 1.5); ctx.fill();
+    ctx.strokeStyle = '#f2c94c'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.arc(hx - 2, hy + 4, 7, 0.3, Math.PI * 0.9); ctx.stroke();
+  }
+  if (p.flash > 0) { ctx.globalAlpha = 0.6; ctx.fillStyle = '#fff'; ell(0, 0, 18, 12.5); ctx.fill(); ell(hx, hy, 10.5, 9.5); ctx.fill(); ctx.globalAlpha = 1; }
+  ctx.restore();
+  if (p.slow < 1) { ctx.fillStyle = 'rgba(120,70,30,.35)'; ell(x, y + 13 * s, 14 * s, 3.5 * s); ctx.fill(); }
+  if (p.hp < p.max) {
+    const w = 30 * s, fr = clamp(p.hp / p.max, 0, 1);
+    ctx.fillStyle = 'rgba(0,0,0,.55)'; rr(x - w / 2 - 1, y - 26 * s - 1, w + 2, 6, 3); ctx.fill();
+    ctx.fillStyle = fr > 0.5 ? '#5ee07a' : fr > 0.25 ? '#ffd84d' : '#ff5c5c'; rr(x - w / 2, y - 26 * s, w * fr, 4, 2); ctx.fill();
+  }
+}
+
+// ---------------------------------------------------------------- desen: turnuri
+function drawTower(type, cx, cy, lvl, ang, fx, time) {
+  ctx.save(); ctx.translate(cx, cy);
+  if (type === 'staple') {
+    ctx.fillStyle = 'rgba(0,0,0,.3)'; ell(2, 4, 18, 16); ctx.fill();
+    ctx.fillStyle = rg(-5, -5, 2, 19, ['#9aa3b2', '#4b5262']); ell(0, 0, 17, 17); ctx.fill();
+    ctx.strokeStyle = '#2d323c'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.rotate(ang);
+    const kick = fx > 0 ? -3 : 0;
+    ctx.fillStyle = '#1f2229'; rr(-10 + kick, -7, 30, 14, 4); ctx.fill();
+    ctx.fillStyle = lg(0, -6, 0, 6, ['#e85a4f', '#a8231b']); rr(-9 + kick, -6, 27, 8, 4); ctx.fill();
+    ctx.fillStyle = '#d7dbe2'; ctx.fillRect(16 + kick, -2, 4, 4);
+    if (fx > 0) { ctx.fillStyle = 'rgba(255,240,150,.8)'; ell(24, 0, 4, 3); ctx.fill(); }
+  } else if (type === 'printer') {
+    ctx.fillStyle = 'rgba(0,0,0,.3)'; rr(-17, -9, 38, 30, 5); ctx.fill();
+    ctx.fillStyle = lg(0, -14, 0, 16, ['#f4f1ea', '#c9c3b6']); rr(-19, -13, 38, 28, 5); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = '#3c3f47'; rr(-15, -9, 30, 7, 2); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.fillRect(-11, -17 + (fx > 0 ? -3 : 0), 22, 9);
+    ctx.fillStyle = '#c9ccd2'; ctx.fillRect(-8, -14 + (fx > 0 ? -3 : 0), 14, 1); ctx.fillRect(-8, -11 + (fx > 0 ? -3 : 0), 10, 1);
+    ctx.fillStyle = '#2b2e35'; ctx.fillRect(-14, 5, 28, 3);
+    ctx.fillStyle = (Math.floor(time * 3) % 2) ? '#3df07a' : '#1b8a44'; ell(13, 0, 2, 2); ctx.fill();
+  } else if (type === 'firewall') {
+    const glow = fx > 0 ? 1 : 0.35;
+    ctx.fillStyle = `rgba(255,120,40,${0.18 * glow})`; ell(0, 0, 30, 30); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,.3)'; rr(-18, 4, 40, 18, 3); ctx.fill();
+    for (let i = 0; i < 3; i++) {
+      const fl = (10 + 6 * Math.sin(time * 13 + i * 2.1)) * (0.6 + 0.4 * glow);
+      ctx.fillStyle = lg(0, 2, 0, 2 - fl - 6, ['#ff5a1f', '#ffb52e', 'rgba(255,240,120,.8)']);
+      ctx.beginPath(); ctx.moveTo(-17 + i * 12, 2); ctx.quadraticCurveTo(-15 + i * 12, -fl * 0.5, -11 + i * 12, -fl - 4); ctx.quadraticCurveTo(-7 + i * 12, -fl * 0.5, -5 + i * 12, 2); ctx.fill();
+    }
+    ctx.fillStyle = lg(0, 0, 0, 20, ['#c4573e', '#8a3322']); rr(-20, 0, 40, 18, 2); ctx.fill();
+    ctx.strokeStyle = '#d9c3b0'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(-20, 9); ctx.lineTo(20, 9); for (const x of [-10, 4, 16]) { ctx.moveTo(x, 0); ctx.lineTo(x, 9); } for (const x of [-16, -3, 10]) { ctx.moveTo(x, 9); ctx.lineTo(x, 18); } ctx.stroke();
+  } else if (type === 'coffee') {
+    ctx.fillStyle = rg(-3, 2, 2, 22, ['#8a5a2e', '#5b3818']);
+    ctx.beginPath(); ctx.ellipse(0, 4, 20, 13, 0.2, 0, 7); ctx.fill(); ell(-13, -4, 7, 5); ctx.fill(); ell(12, 12, 6, 4); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.25)'; ell(-5, 0, 7, 2.5); ctx.fill();
+    ctx.save(); ctx.translate(11, -8); ctx.rotate(-0.9);
+    ctx.fillStyle = lg(-6, 0, 6, 0, ['#ffffff', '#cfd3da']); rr(-6, -8, 12, 15, 2); ctx.fill();
+    ctx.strokeStyle = '#cfd3da'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(7, -1, 4, -1.4, 1.4); ctx.stroke();
+    ctx.fillStyle = '#d97757'; ctx.fillRect(-6, -2, 12, 3); ctx.restore();
+  } else if (type === 'trap') {
+    ctx.fillStyle = 'rgba(0,0,0,.3)'; rr(-15, -9, 32, 24, 3); ctx.fill();
+    ctx.fillStyle = lg(0, -10, 0, 12, ['#d8b07a', '#a87d48']); rr(-16, -11, 32, 22, 3); ctx.fill();
+    ctx.strokeStyle = 'rgba(90,60,25,.4)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-14, -4); ctx.lineTo(14, -4); ctx.moveTo(-14, 4); ctx.lineTo(14, 4); ctx.stroke();
+    ctx.strokeStyle = '#d6dae0'; ctx.lineWidth = 2.5; ctx.beginPath();
+    if (fx > 0) { ctx.moveTo(-13, -9); ctx.lineTo(13, -9); } else { ctx.moveTo(-13, 9); ctx.lineTo(13, 9); ctx.moveTo(0, 9); ctx.lineTo(0, -1); }
+    ctx.stroke(); ctx.fillStyle = '#9aa1ab'; ell(0, 0, 3, 3); ctx.fill();
+    ctx.fillStyle = '#ffd34d'; ctx.beginPath(); ctx.moveTo(4, -2); ctx.lineTo(13, -6); ctx.lineTo(13, 3); ctx.fill();
+    ctx.fillStyle = '#e8b52c'; ell(10, -2, 1.3, 1.3); ctx.fill();
+    if (fx > 0.2) { ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = 2; for (let i = 0; i < 6; i++) { const a = i * 1.05; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 18, Math.sin(a) * 18); ctx.lineTo(Math.cos(a) * 25, Math.sin(a) * 25); ctx.stroke(); } }
+  }
+  ctx.restore();
+  for (let i = 0; i < lvl; i++) { ctx.fillStyle = '#ffd84d'; ctx.strokeStyle = '#7a5a00'; ctx.lineWidth = 1; ell(cx - 18 + i * 7, cy - 19, 3, 3); ctx.fill(); ctx.stroke(); }
+}
+
+// ---------------------------------------------------------------- desen: programatorul
+function drawProgrammer(g) {
+  const d = LD[g.li], bx = d.prog.c * TS, by = MY + d.prog.r * TS, cx = bx + 75, t = g.time, mood = g.face.type;
+  const typing = g.state === 'wave' && mood === 'normal';
+  ctx.fillStyle = 'rgba(0,0,0,.28)'; ell(cx + 4, by + 140, 76, 12); ctx.fill();
+  // scaun
+  ctx.fillStyle = lg(0, by + 20, 0, by + 100, ['#353a47', '#1f232c']); rr(cx - 36, by + 22, 72, 78, 16); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.06)'; rr(cx - 30, by + 28, 60, 20, 10); ctx.fill();
+  // corp (build mediu, tricou)
+  const bob = typing ? Math.sin(t * 9) * 0.6 : 0, jump = mood === 'shock' ? -3 : mood === 'happy' ? Math.sin(t * 12) * 1.5 - 1 : 0;
+  ctx.save(); ctx.translate(0, bob + jump);
+  ctx.fillStyle = lg(cx - 34, 0, cx + 34, 0, ['#2e4f6e', '#3f6c94', '#2e4f6e']);
+  ctx.beginPath(); ctx.moveTo(cx - 34, by + 108); ctx.lineTo(cx - 33, by + 76); ctx.quadraticCurveTo(cx - 32, by + 62, cx - 16, by + 60); ctx.lineTo(cx + 16, by + 60); ctx.quadraticCurveTo(cx + 32, by + 62, cx + 33, by + 76); ctx.lineTo(cx + 34, by + 108); ctx.fill();
+  ctx.fillStyle = '#24405a'; ctx.beginPath(); ctx.moveTo(cx - 9, by + 60); ctx.quadraticCurveTo(cx, by + 70, cx + 9, by + 60); ctx.fill();
+  // gât
+  ctx.fillStyle = '#d6a27c'; ctx.fillRect(cx - 7, by + 50, 14, 12);
+  // urechi
+  ctx.fillStyle = '#e2ae88'; ell(cx - 17, by + 40, 3.5, 5.5); ctx.fill(); ell(cx + 17, by + 40, 3.5, 5.5); ctx.fill();
+  // cap
+  ctx.fillStyle = rg(cx - 5, by + 33, 3, 24, ['#f6d0ae', '#e3ae87', '#cf9670']); ell(cx, by + 39, 16.5, 19.5); ctx.fill();
+  // barbă nerasă (stubble)
+  ctx.save(); ell(cx, by + 39, 16.5, 19.5); ctx.clip();
+  ctx.fillStyle = 'rgba(70,45,30,.30)'; ell(cx, by + 53, 17, 12); ctx.fill();
+  ctx.fillStyle = 'rgba(70,45,30,.22)'; ell(cx, by + 47.5, 7, 2.2); ctx.fill();
+  const SR = mulberry(42); ctx.fillStyle = 'rgba(55,35,22,.45)';
+  for (let i = 0; i < 70; i++) { const a = Math.PI * (0.1 + SR() * 0.8), r = 9 + SR() * 9; ctx.fillRect(cx + Math.cos(a) * r * 0.95, by + 42 + Math.sin(a) * r * 0.75, 0.9, 0.9); }
+  ctx.restore();
+  // păr scurt
+  ctx.fillStyle = lg(0, by + 18, 0, by + 34, ['#4a3426', '#2e2018']);
+  ctx.beginPath(); ctx.ellipse(cx, by + 31, 17.5, 13.5, 0, Math.PI, 0); ctx.lineTo(cx + 17.5, by + 36); ctx.lineTo(cx + 15, by + 34); ctx.quadraticCurveTo(cx + 4, by + 25, cx - 8, by + 28); ctx.lineTo(cx - 15, by + 34); ctx.lineTo(cx - 17.5, by + 36); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.12)'; ell(cx - 4, by + 21, 7, 2.5); ctx.fill();
+  // sprâncene
+  const brow = mood === 'shock' ? -3 : mood === 'meh' ? 1 : 0;
+  ctx.strokeStyle = '#3a281c'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(cx - 12, by + 32 + brow + (mood === 'meh' ? -1 : 0)); ctx.lineTo(cx - 4, by + 31 + brow); ctx.moveTo(cx + 4, by + 31 + brow); ctx.lineTo(cx + 12, by + 32 + brow + (mood === 'meh' ? -1 : 0)); ctx.stroke();
+  // ochi
+  const ey = by + 38, er = mood === 'shock' ? 2.6 : 1.7;
+  if (mood === 'happy') { ctx.strokeStyle = '#2a1d14'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(cx - 7.5, ey + 1, 2.5, Math.PI * 1.1, Math.PI * 1.9); ctx.moveTo(cx + 10, ey + 1); ctx.arc(cx + 7.5, ey + 1, 2.5, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke(); }
+  else { if (mood === 'shock') { ctx.fillStyle = '#fff'; ell(cx - 7.5, ey, 3.6, 3.6); ctx.fill(); ell(cx + 7.5, ey, 3.6, 3.6); ctx.fill(); }
+    const look = typing ? Math.sin(t * 2) * 0.6 : 0; ctx.fillStyle = '#2a1d14'; ell(cx - 7.5 + look, ey + 0.5, er, er); ctx.fill(); ell(cx + 7.5 + look, ey + 0.5, er, er); ctx.fill(); }
+  // ochelari
+  ctx.fillStyle = 'rgba(190,225,255,.22)'; ctx.strokeStyle = '#18181c'; ctx.lineWidth = 2;
+  rr(cx - 14, by + 33.5, 12, 9.5, 3); ctx.fill(); ctx.stroke(); rr(cx + 2, by + 33.5, 12, 9.5, 3); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx - 2, by + 37); ctx.quadraticCurveTo(cx, by + 35.5, cx + 2, by + 37); ctx.moveTo(cx - 14, by + 36); ctx.lineTo(cx - 17, by + 35); ctx.moveTo(cx + 14, by + 36); ctx.lineTo(cx + 17, by + 35); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(cx - 11, by + 36); ctx.lineTo(cx - 9, by + 35); ctx.moveTo(cx + 5, by + 36); ctx.lineTo(cx + 7, by + 35); ctx.stroke();
+  // nas
+  ctx.strokeStyle = 'rgba(150,90,60,.6)'; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.moveTo(cx, by + 41); ctx.quadraticCurveTo(cx + 2.5, by + 46, cx - 1, by + 46); ctx.stroke();
+  // gură
+  ctx.strokeStyle = '#7a3d2c'; ctx.fillStyle = '#5a2418'; ctx.lineWidth = 1.6; ctx.beginPath();
+  if (mood === 'happy') { ctx.arc(cx, by + 49, 5, 0.15 * Math.PI, 0.85 * Math.PI); ctx.fill(); }
+  else if (mood === 'shock') { ell(cx, by + 51, 3.5, 4.5); ctx.fill(); }
+  else if (mood === 'hurt') { ctx.moveTo(cx - 5, by + 51); ctx.lineTo(cx - 2, by + 49); ctx.lineTo(cx + 1, by + 51); ctx.lineTo(cx + 4, by + 49); ctx.stroke(); }
+  else if (mood === 'meh') { ctx.arc(cx, by + 54, 5, 1.2 * Math.PI, 1.8 * Math.PI); ctx.stroke(); }
+  else { ctx.moveTo(cx - 4, by + 50); ctx.quadraticCurveTo(cx, by + 51.5, cx + 4, by + 50); ctx.stroke(); }
+  if (g.hp <= 6 || mood === 'shock') { ctx.fillStyle = '#9fd8ff'; ctx.beginPath(); ctx.moveTo(cx + 15, by + 26); ctx.quadraticCurveTo(cx + 19, by + 33, cx + 15, by + 34); ctx.quadraticCurveTo(cx + 11, by + 33, cx + 15, by + 26); ctx.fill(); }
+  if (mood === 'hurt') { ctx.fillStyle = 'rgba(255,60,60,.25)'; ell(cx, by + 39, 17, 20); ctx.fill(); }
+  // brațe
+  const tap = typing ? Math.sin(t * 22) * 1.8 : 0;
+  ctx.fillStyle = '#3a6489';
+  ctx.beginPath(); ctx.moveTo(cx - 33, by + 74); ctx.quadraticCurveTo(cx - 44, by + 92, cx - 34, by + 100); ctx.lineTo(cx - 24, by + 98); ctx.lineTo(cx - 24, by + 80); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(cx + 33, by + 74); ctx.quadraticCurveTo(cx + 44, by + 92, cx + 34, by + 100); ctx.lineTo(cx + 24, by + 98); ctx.lineTo(cx + 24, by + 80); ctx.fill();
+  ctx.restore();
+  // birou
+  ctx.fillStyle = lg(0, by + 92, 0, by + 146, ['#b98656', '#8a5b33', '#6e4626']); rr(bx + 3, by + 96, 144, 46, 6); ctx.fill();
+  ctx.fillStyle = lg(0, by + 90, 0, by + 104, ['#e2b98a', '#c69463']); rr(bx, by + 90, 150, 14, 5); ctx.fill();
+  ctx.fillStyle = 'rgba(0,0,0,.15)'; ctx.fillRect(bx + 10, by + 118, 130, 2);
+  // laptop
+  ctx.fillStyle = '#2a2d34'; rr(cx - 34, by + 92, 68, 6, 2); ctx.fill();
+  ctx.fillStyle = lg(cx - 30, 0, cx + 30, 0, ['#9da3ad', '#e4e7ec', '#a9afb9']); rr(cx - 31, by + 62, 62, 32, 4); ctx.fill();
+  const glow = mood === 'shock' ? '#ff4d2a' : '#d97757';
+  ctx.save(); ctx.globalAlpha = 0.35 + 0.15 * Math.sin(t * 3); ctx.fillStyle = glow; ell(cx, by + 77, 10, 10); ctx.fill(); ctx.restore();
+  drawClaudeLogo(cx, by + 77, 7, glow, mood === 'shock' ? t * 8 : 0);
+  // mâini
+  ctx.fillStyle = '#e3ae87'; ell(cx - 38, by + 95 + tap, 6, 4.5); ctx.fill(); ell(cx + 38, by + 95 - tap, 6, 4.5); ctx.fill();
+  // cană + plantă mică
+  ctx.fillStyle = lg(bx + 120, 0, bx + 134, 0, ['#ffffff', '#d5d9df']); rr(bx + 120, by + 80, 13, 15, 2); ctx.fill();
+  ctx.strokeStyle = '#d5d9df'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(bx + 135, by + 87, 4, -1.4, 1.4); ctx.stroke();
+  ctx.fillStyle = '#d97757'; ctx.fillRect(bx + 120, by + 85, 13, 3);
+  ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 1.5;
+  for (let i = 0; i < 2; i++) { ctx.beginPath(); const sx = bx + 124 + i * 5; ctx.moveTo(sx, by + 78); ctx.bezierCurveTo(sx - 3, by + 72, sx + 3, by + 68, sx, by + 62 + Math.sin(t * 3 + i) * 2); ctx.stroke(); }
+  ctx.fillStyle = '#b0623a'; rr(bx + 12, by + 82, 14, 12, 2); ctx.fill();
+  ctx.fillStyle = '#4caf50'; ell(bx + 15, by + 78, 5, 6); ctx.fill(); ell(bx + 23, by + 77, 5, 7); ctx.fill(); ctx.fillStyle = '#66c86b'; ell(bx + 19, by + 73, 4, 6); ctx.fill();
+  // bara nervi deasupra
+  const fr = clamp(g.hp / 20, 0, 1);
+  ctx.fillStyle = 'rgba(0,0,0,.55)'; rr(cx - 36, by - 2, 72, 10, 5); ctx.fill();
+  ctx.fillStyle = fr > 0.5 ? '#5ee07a' : fr > 0.25 ? '#ffd84d' : '#ff5c5c'; rr(cx - 34, by, 68 * fr, 6, 3); ctx.fill();
+}
+function drawClaudeLogo(x, y, r, col, rot = 0) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.strokeStyle = col; ctx.lineCap = 'round'; ctx.lineWidth = r * 0.32;
+  for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4, l = i % 2 ? r * 0.8 : r; ctx.beginPath(); ctx.moveTo(Math.cos(a) * r * 0.22, Math.sin(a) * r * 0.22); ctx.lineTo(Math.cos(a) * l, Math.sin(a) * l); ctx.stroke(); }
+  ctx.restore();
+}
+
+// ---------------------------------------------------------------- desen: lumea jocului
+function drawWorld(g, interactive) {
+  ctx.save();
+  if (shakeT > 0 && !g.demo) ctx.translate((Math.random() - 0.5) * 12 * shakeT / 0.6, (Math.random() - 0.5) * 12 * shakeT / 0.6);
+  ctx.drawImage(getBG(g.li), 0, MY);
+  // capcanele de pe traseu sub porci
+  for (const t of g.towers) if (TOWERS[t.type].onPath) drawTower(t.type, t.c * TS + 25, MY + t.r * TS + 25, t.lvl, t.ang, t.fx, g.time);
+  drawProgrammer(g);
+  const sorted = g.pigs.slice().sort((a, b) => a.y - b.y);
+  for (const p of sorted) drawPig(p, p.x + p.ox, p.y + p.oy);
+  for (const t of g.towers) if (!TOWERS[t.type].onPath) drawTower(t.type, t.c * TS + 25, MY + t.r * TS + 25, t.lvl, t.ang, t.fx, g.time);
+  for (const pr of g.projs) {
+    if (pr.k === 'staple') { ctx.save(); ctx.translate(pr.x, pr.y); ctx.rotate(pr.a || 0); ctx.strokeStyle = '#e9edf2'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-4, -3); ctx.lineTo(-4, 0); ctx.lineTo(4, 0); ctx.lineTo(4, -3); ctx.stroke(); ctx.restore(); }
+    else {
+      const k = pr.t / pr.dur, x = pr.sx + (pr.tx - pr.sx) * k, y = pr.sy + (pr.ty - pr.sy) * k - Math.sin(k * Math.PI) * 45;
+      ctx.fillStyle = 'rgba(0,0,0,.2)'; ell(pr.sx + (pr.tx - pr.sx) * k, pr.sy + (pr.ty - pr.sy) * k + 8, 6, 2.5); ctx.fill();
+      ctx.fillStyle = rg(x - 2, y - 2, 1, 8, ['#ffffff', '#d9d9d2']); ell(x, y, 7, 7); ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x - 4, y - 2); ctx.lineTo(x + 2, y + 1); ctx.moveTo(x - 1, y + 4); ctx.lineTo(x + 3, y - 3); ctx.stroke();
+    }
+  }
+  drawFx();
+  ctx.restore();
+  if (flashT > 0 && !g.demo) { const vg = ctx.createRadialGradient(MW / 2, MY + MH / 2, 200, MW / 2, MY + MH / 2, 650); vg.addColorStop(0, `rgba(${flashCol},0)`); vg.addColorStop(1, `rgba(${flashCol},${0.5 * flashT})`); ctx.fillStyle = vg; ctx.fillRect(0, MY, MW, MH); }
+}
+
+// ---------------------------------------------------------------- ecran: joc
+function drawPlay() {
+  const g = G, d = LD[g.li], lv = LEVELS[g.li], over = scr !== 'play' || paused;
+  if (!over) region(0, MY, MW, MH, mapClick);
+  drawWorld(g, true);
+  // previzualizare plasare / selecție
+  if (!over) {
+    const c = Math.floor(mouse.x / TS), r = Math.floor((mouse.y - MY) / TS);
+    if (selShop && mouse.x < MW && mouse.y > MY && mouse.y < MY + MH && inb(c, r)) {
+      const ok = canPlace(g, selShop, c, r) && g.money >= TOWERS[selShop].cost, T = TOWERS[selShop], cx = c * TS + 25, cy = MY + r * TS + 25;
+      if (T.range) { ctx.fillStyle = ok ? 'rgba(120,200,255,.14)' : 'rgba(255,90,90,.12)'; ell(cx, cy, T.range * TS, T.range * TS); ctx.fill(); ctx.strokeStyle = ok ? 'rgba(160,215,255,.7)' : 'rgba(255,110,110,.6)'; ctx.lineWidth = 1.5; ctx.stroke(); }
+      ctx.fillStyle = ok ? 'rgba(110,255,150,.22)' : 'rgba(255,80,80,.25)'; ctx.fillRect(c * TS, MY + r * TS, TS, TS);
+      ctx.globalAlpha = 0.75; drawTower(selShop, cx, cy, 1, -Math.PI / 2, 0, g.time); ctx.globalAlpha = 1;
+    }
+  }
+  const st = g.towers.find(t => t.id === selTower);
+  if (st && !over) drawTowerPopup(g, st);
+  drawHUD(g); drawPanel(g); drawBottom(g);
+  if (paused && scr === 'play') {
+    ctx.fillStyle = 'rgba(10,12,18,.6)'; ctx.fillRect(0, 0, W, H);
+    textS('Pauză', W / 2, 280, 64, '#fff');
+    button(W / 2 - 110, 340, 220, 56, 'Continuă', () => paused = false, { color: '#2fa865', size: 22 });
+    button(W / 2 - 110, 412, 220, 48, 'Ieși la meniu', () => { paused = false; goLevels(); }, { color: '#5b6474' });
+  }
+}
+function mapClick(x, y) {
+  const g = G, c = Math.floor(x / TS), r = Math.floor((y - MY) / TS); if (!inb(c, r)) return;
+  if (selShop) {
+    if (!canPlace(g, selShop, c, r)) { sfx('error'); say(g, TOWERS[selShop].onPath ? 'Asta se pune doar pe traseul porcilor (covor).' : 'Aici nu se poate. Alege o bucată liberă de podea, lângă traseu.'); return; }
+    if (g.money < TOWERS[selShop].cost) { sfx('error'); say(g, 'Nu ai destui lei.'); return; }
+    placeTower(g, selShop, c, r); selShop = null; return;
+  }
+  const t = towerAt(g, c, r); selTower = t ? t.id : null; if (t) sfx('click');
+}
+function drawTowerPopup(g, t) {
+  const T = TOWERS[t.type], cx = t.c * TS + 25, cy = MY + t.r * TS + 25;
+  const R = T.range ? (T.range + (t.type === 'firewall' ? 0.25 : 0.35) * (t.lvl - 1)) * TS : 0;
+  if (R) { ctx.fillStyle = 'rgba(120,200,255,.12)'; ell(cx, cy, R, R); ctx.fill(); ctx.strokeStyle = 'rgba(160,215,255,.7)'; ctx.lineWidth = 1.5; ctx.stroke(); }
+  ctx.strokeStyle = '#ffd84d'; ctx.lineWidth = 2; ctx.strokeRect(t.c * TS + 1, MY + t.r * TS + 1, TS - 2, TS - 2);
+  const w = 230, h = 118; let x = clamp(cx - w / 2, 6, MW - w - 6), y = cy - h - 34; if (y < MY + 4) y = cy + 34;
+  region(x, y, w, h, () => { });
+  ctx.fillStyle = 'rgba(0,0,0,.4)'; rr(x + 3, y + 5, w, h, 14); ctx.fill();
+  ctx.fillStyle = lg(0, y, 0, y + h, ['#2c3140', '#1d212b']); rr(x, y, w, h, 14); ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,.15)'; ctx.lineWidth = 1; ctx.stroke();
+  text(T.name, x + 14, y + 20, 17, '#fff', 'left', FH, '600');
+  text(`Nivel ${t.lvl}/3`, x + w - 40, y + 20, 13, '#ffd84d', 'right', FB, '800');
+  button(x + w - 34, y + 8, 24, 24, '×', () => selTower = null, { color: '#5b6474', r: 8, size: 18 });
+  if (t.lvl < 3) { const c = upCost(t); button(x + 12, y + 44, 116, 56, `Upgrade · ${c} lei`, () => { if (G.money >= c) { G.money -= c; t.invest += c; t.lvl++; sfx('upgrade'); confetti(cx, cy, 14); } else { sfx('error'); say(G, 'Nu ai destui lei pentru upgrade.'); } }, { color: G.money >= c ? '#2fa865' : '#6b5a3a', size: 14 }); }
+  else { ctx.fillStyle = 'rgba(255,216,77,.12)'; rr(x + 12, y + 44, 116, 56, 12); ctx.fill(); text('Nivel maxim', x + 70, y + 72, 15, '#ffd84d', 'center', FH, '600'); }
+  const sv = Math.floor(t.invest / 2);
+  button(x + 136, y + 44, 82, 56, `Vinde +${sv}`, () => { G.money += sv; G.towers = G.towers.filter(q => q !== t); selTower = null; sfx('sell'); puff(cx, cy, '#ddd', 8); }, { color: '#b5443b', size: 14 });
+}
+function bar(x, y, w, h, f, col, bg = 'rgba(0,0,0,.45)') { ctx.fillStyle = bg; rr(x, y, w, h, h / 2); ctx.fill(); if (f > 0) { ctx.fillStyle = col; rr(x, y, Math.max(h, w * clamp(f, 0, 1)), h, h / 2); ctx.fill(); ctx.fillStyle = 'rgba(255,255,255,.25)'; rr(x + 2, y + 1, Math.max(0, w * clamp(f, 0, 1) - 4), h * 0.35, h / 4); ctx.fill(); } }
+function coinIcon(x, y, r = 10) { ctx.fillStyle = rg(x - 3, y - 3, 1, r, ['#fff3a8', '#f0b429', '#b07d0a']); ell(x, y, r, r); ctx.fill(); ctx.strokeStyle = '#8a6100'; ctx.lineWidth = 1.2; ctx.stroke(); text('L', x, y + 1, r * 1.1, '#7a5300', 'center', FH, '700'); }
+function heartIcon(x, y, s = 1) { ctx.fillStyle = '#ff5c7a'; ctx.beginPath(); ctx.moveTo(x, y + 7 * s); ctx.bezierCurveTo(x - 12 * s, y - 2 * s, x - 6 * s, y - 10 * s, x, y - 4 * s); ctx.bezierCurveTo(x + 6 * s, y - 10 * s, x + 12 * s, y - 2 * s, x, y + 7 * s); ctx.fill(); }
+function drawHUD(g) {
+  const lv = LEVELS[g.li];
+  ctx.fillStyle = lg(0, 0, 0, MY, ['#232734', '#181b24']); ctx.fillRect(0, 0, MW, MY);
+  ctx.fillStyle = 'rgba(255,255,255,.06)'; ctx.fillRect(0, MY - 1, MW, 1);
+  text(`${g.li + 1}. ${lv.name}`, 16, 22, 20, '#fff', 'left', FH, '600'); text(lv.sub, 16, 43, 13, '#8f97a8', 'left', FB, '700');
+  ctx.fillStyle = 'rgba(255,255,255,.08)'; rr(300, 13, 104, 34, 17); ctx.fill();
+  text(`Val ${Math.min(g.wave + (g.state === 'wave' ? 1 : 0), lv.waves)}/${lv.waves}`, 352, 31, 17, '#fff', 'center', FH, '600');
+  coinIcon(436, 30, 12); text(`${g.money} lei`, 454, 31, 20, '#ffd84d', 'left', FH, '600');
+  heartIcon(586, 29, 1.15); text('Nervi', 602, 22, 12, '#aab1c0', 'left', FB, '800'); bar(602, 34, 110, 10, g.hp / 20, g.hp > 10 ? '#5ee07a' : g.hp > 5 ? '#ffd84d' : '#ff5c5c'); text(`${g.hp}`, 718, 39, 13, '#fff', 'left', FB, '800');
+  drawClaudeLogo(762, 30, 10, '#d97757'); text('Tokeni', 778, 22, 12, '#aab1c0', 'left', FB, '800'); bar(778, 34, 150, 10, g.tokens / 100000, '#d97757'); text(`${Math.round(g.tokens / 1000)}k`, 934, 39, 13, '#fff', 'left', FB, '800');
+}
+function drawPanel(g) {
+  ctx.fillStyle = lg(PX, 0, PX, H, ['#1f2330', '#171a22']); ctx.fillRect(PX, 0, W - PX, H);
+  ctx.fillStyle = 'rgba(255,255,255,.06)'; ctx.fillRect(PX, 0, 1, H);
+  text('Magazin', PX + 16, 22, 19, '#fff', 'left', FH, '600');
+  if (selShop) button(PX + 168, 8, 98, 28, 'Anulează', () => selShop = null, { color: '#5b6474', size: 14, r: 9 });
+  TORDER.forEach((k, i) => {
+    const T = TOWERS[k], y = 42 + i * 58, x = PX + 10, w = 260, h = 52, can = g.money >= T.cost, sel = selShop === k, hv = hov(x, y, w, h);
+    ctx.fillStyle = sel ? lg(0, y, 0, y + h, ['#3d6fb8', '#2c548f']) : lg(0, y, 0, y + h, [hv ? '#343a4b' : '#2a2f3d', hv ? '#2a2f3d' : '#222631']); rr(x, y, w, h, 12); ctx.fill();
+    ctx.strokeStyle = sel ? '#9cc7ff' : 'rgba(255,255,255,.08)'; ctx.lineWidth = sel ? 2 : 1; ctx.stroke();
+    ctx.fillStyle = 'rgba(0,0,0,.25)'; rr(x + 6, y + 5, 42, 42, 10); ctx.fill();
+    ctx.save(); ctx.translate(x + 27, y + 26); ctx.scale(0.85, 0.85); drawTower(k, 0, 0, 0, -Math.PI / 4, 0, g.time); ctx.restore();
+    text(T.name, x + 56, y + 17, 15, can ? '#fff' : '#8a8f9a', 'left', FH, '600');
+    text(T.desc, x + 56, y + 37, 11.5, '#9aa2b3', 'left', FB, '700');
+    text(`${T.cost} lei`, x + w - 10, y + 17, 14, can ? '#ffd84d' : '#a07a6a', 'right', FB, '800');
+    region(x, y, w, h, () => { sfx('click'); selShop = selShop === k ? null : k; selTower = null; });
+  });
+  // Claude
+  const cy = 336, ch = 268, cx = PX + 8, cw = 264, an = g.canim;
+  let border = 'rgba(217,119,87,.6)', glowA = 0;
+  if (an && an.t < 1.2) { glowA = 1 - an.t / 1.2; border = an.type === 'good' ? '#5ee07a' : an.type === 'bad' ? '#ff4d4d' : '#8a93a6'; }
+  ctx.save(); let sx = 0;
+  if (an && an.type === 'bad' && an.t < 0.6) sx = Math.sin(an.t * 60) * 6 * (1 - an.t / 0.6);
+  ctx.translate(sx, 0);
+  if (glowA) { ctx.shadowColor = border; ctx.shadowBlur = 25 * glowA; }
+  ctx.fillStyle = lg(0, cy, 0, cy + ch, ['#2a211e', '#1b1716']); rr(cx, cy, cw, ch, 14); ctx.fill(); ctx.shadowBlur = 0;
+  ctx.strokeStyle = border; ctx.lineWidth = 2; ctx.stroke();
+  let rot = g.time * 0.6, lsc = 1, lcol = '#d97757';
+  if (an) {
+    if (an.type === 'good') { rot = g.time * 0.6 + Math.min(an.t, 0.8) * 10; lsc = 1 + 0.5 * Math.max(0, Math.sin(Math.min(an.t, 0.8) / 0.8 * Math.PI)); }
+    else if (an.type === 'bad') { lcol = an.t < 2 && Math.floor(an.t * 8) % 2 ? '#ff4d4d' : '#d97757'; rot = Math.sin(an.t * 30) * 0.4 * Math.max(0, 1 - an.t / 2); }
+    else { lsc = 0.85; lcol = '#8a7a74'; rot = 0.35; }
+  } else if (g.req) rot = g.time * 3;
+  drawClaudeLogo(cx + 24, cy + 24, 12 * lsc, lcol, rot);
+  text('Claude Code', cx + 44, cy + 24, 18, '#f0d8cc', 'left', FH, '600');
+  const status = g.req ? 'așteaptă aprobare' : g.state === 'wave' ? 'lucrează' : 'în pauză';
+  text(status, cx + cw - 12, cy + 25, 12, g.req ? '#ffb38a' : '#8f857f', 'right', FB, '800');
+  if (g.req) {
+    const q = g.req, cmd = (q.bad ? BAD : GOOD)[q.i][0];
+    text('Claude vrea să ruleze:', cx + 14, cy + 54, 13, '#c9b9b0', 'left', FB, '700');
+    ctx.fillStyle = '#0d0e11'; rr(cx + 12, cy + 66, cw - 24, 84, 8); ctx.fill();
+    text('$', cx + 22, cy + 82, 14, '#d97757', 'left', 'Consolas,monospace', '700');
+    wrap(cmd, cw - 56, 14, 'Consolas,"Courier New",monospace', '700').slice(0, 4).forEach((l, i) => text(l, cx + 36, cy + 82 + i * 19, 14, '#8ff0a4', 'left', 'Consolas,"Courier New",monospace', '700'));
+    bar(cx + 12, cy + 160, cw - 24, 7, 1 - q.t / q.max, q.t / q.max > 0.7 ? '#ff5c5c' : '#d97757');
+    text('Cât timp aștepți, se ard tokeni!', cx + 14, cy + 180, 12, '#ff9f80', 'left', FB, '700');
+    button(cx + 12, cy + 198, 116, 56, 'Aprobă', () => answer(G, true), { color: '#2fa865', size: 19 });
+    button(cx + cw - 128, cy + 198, 116, 56, 'Refuză', () => answer(G, false), { color: '#c0443b', size: 19 });
+  } else if (an) {
+    const a = Math.min(1, an.t * 4), col = an.type === 'good' ? '#7ef0a0' : an.type === 'bad' ? '#ff7a6b' : '#b8bcc6';
+    ctx.globalAlpha = a;
+    const head = an.type === 'good' ? 'Excelent!' : an.type === 'bad' ? 'DEZASTRU!' : 'Hmm...';
+    const pop = an.type === 'bad' ? 1 + 0.25 * Math.max(0, 1 - an.t * 3) : 1 + 0.15 * Math.max(0, Math.sin(an.t * 10) * (1 - an.t));
+    ctx.save(); ctx.translate(cx + cw / 2, cy + 74); ctx.scale(pop, pop); textS(head, 0, 0, 30, col, 'center', FH, '700'); ctx.restore();
+    wrap('„' + an.line + '”', cw - 30, 15, FB, '700').slice(0, 5).forEach((l, i) => text(l, cx + cw / 2, cy + 116 + i * 21, 15, '#eadfd8', 'center', FB, '700'));
+    ctx.fillStyle = an.type === 'good' ? 'rgba(94,224,122,.15)' : an.type === 'bad' ? 'rgba(255,77,77,.15)' : 'rgba(150,150,160,.15)'; rr(cx + 14, cy + 222, cw - 28, 32, 10); ctx.fill();
+    text(an.sub, cx + cw / 2, cy + 238, 14, col, 'center', FB, '800');
+    if (an.type === 'sad') { ctx.fillStyle = '#7fb8ff'; ell(cx + 40, cy + 40 + (an.t * 30) % 20, 2, 3); ctx.fill(); }
+    ctx.globalAlpha = 1;
+  } else {
+    const lines = g.state === 'wave'
+      ? ['Claude lucrează la proiect' + '.'.repeat(1 + Math.floor(g.time * 2) % 3), '', 'Din când în când îți cere voie.', 'Aprobă comenzile bune.', 'Refuză prostiile periculoase.']
+      : ['Claude așteaptă următorul val.', '', 'Comenzi bune aprobate = lei.', 'Comenzi rele aprobate = haos.', 'Indecizia arde tokeni.'];
+    lines.forEach((l, i) => text(l, cx + 16, cy + 62 + i * 24, 14, i === 0 ? '#e7d6cd' : '#a89a93', 'left', FB, '700'));
+    ctx.fillStyle = '#0d0e11'; rr(cx + 12, cy + 188, cw - 24, 66, 8); ctx.fill();
+    for (let i = 0; i < 4; i++) { const w = g.state === 'wave' ? 30 + Math.abs(Math.sin(i * 1.7 + Math.floor(g.time * 4) * 0.8)) * 170 : 40 + i * 25; ctx.fillStyle = ['#8ff0a4', '#7fb3ff', '#d97757', '#c9a0ff'][i]; ctx.globalAlpha = 0.7; rr(cx + 22, cy + 198 + i * 13, w, 6, 3); ctx.fill(); }
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+  // butoane jos
+  const bw = 260, by = 614;
+  if (g.state === 'build') button(PX + 10, by, bw, 50, `▶  Pornește valul ${g.wave + 1}`, () => { startWave(G); selTower = null; }, { color: '#2fa865', size: 20 });
+  else { const left = g.queue.length + g.pigs.length; button(PX + 10, by, bw, 50, `Val în curs · ${left} porci`, null, { disabled: true, size: 17 }); }
+  const sb = (i, label, fn, on) => button(PX + 10 + i * 53, 672, 48, 38, label, fn, { color: on ? '#4f7cff' : '#3a4050', size: 15, r: 10 });
+  sb(0, g.speed === 2 ? '2x' : '1x', () => G.speed = G.speed === 2 ? 1 : 2, g.speed === 2);
+  sb(1, '❚❚', () => paused = true, false);
+  sb(2, '♪', toggleMusic, AU.music);
+  sb(3, '🔊', toggleSfx, AU.sfx);
+  sb(4, '⌂', () => { paused = true; }, false); // meniul de pauză are „Ieși la meniu”
+  // tokeni
+}
+function drawBottom(g) {
+  ctx.fillStyle = lg(0, MY + MH, 0, H, ['#1d2029', '#15171e']); ctx.fillRect(0, MY + MH, MW, H - MY - MH);
+  const tip = g.msgT > 0 ? g.msg : selShop ? (TOWERS[selShop].onPath ? `Click pe covorul porcilor ca să pui: ${TOWERS[selShop].name}.` : `Click pe o bucată liberă de podea ca să pui: ${TOWERS[selShop].name}.`)
+    : g.state === 'build' ? (g.towers.length ? 'Gata? Apasă „Pornește valul” din dreapta jos.' : 'Alege o capcană din Magazin (dreapta) și pune-o lângă traseu.') : 'Click pe o capcană ca s-o îmbunătățești sau s-o vinzi.';
+  text(tip, 16, MY + MH + 30, 15, g.msgT > 0 ? '#ffe7c2' : '#a7aec0', 'left', FB, '700');
+  button(MW - 196, MY + MH + 12, 184, 36, 'Tokeni +30k · 60 lei', () => { if (G.money >= 60) { G.money -= 60; G.tokens = Math.min(100000, G.tokens + 30000); sfx('coin'); say(G, 'Ai cumpărat 30k tokeni. Claude e fericit.'); } else { sfx('error'); say(G, 'Nu ai destui lei pentru tokeni.'); } }, { color: '#b9603f', size: 14, r: 10, disabled: g.tokens >= 99000 });
+}
+
+// ---------------------------------------------------------------- meniu, nivele, final
+function demoSetup() {
+  const li = Math.floor(Math.random() * LEVELS.length), g = newGame(li, true), d = LD[li], R = mulberry(9 + li);
+  const near = [], path = [];
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    if (d.pathT[r][c] && !d.progT[r][c] && c > 1) path.push([c, r]);
+    else if (!d.blocked[r][c]) { let adj = false; for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) if (inb(c + a, r + b) && d.pathT[r + b][c + a]) adj = true; if (adj) near.push([c, r]); }
+  }
+  const types = ['staple', 'staple', 'printer', 'staple', 'firewall', 'printer', 'staple'];
+  types.forEach((t, i) => { if (!near.length) return; const [c, r] = near.splice(Math.floor(R() * near.length), 1)[0]; g.towers.push({ id: g.idc++, type: t, c, r, lvl: 1 + (i % 3 === 0 ? 1 : 0), invest: 0, cd: 0, ang: -1.5, fx: 0 }); });
+  ['coffee', 'trap', 'trap'].forEach(t => { if (!path.length) return; const [c, r] = path.splice(Math.floor(R() * path.length), 1)[0]; g.towers.push({ id: g.idc++, type: t, c, r, lvl: 1, invest: 0, cd: 0, ang: 0, fx: 0 }); });
+  return g;
+}
+function drawBigPig(x, y, s, tm) { drawPig({ type: 'normal', face: 1, anim: tm * 8, flash: 0, slow: 1, hp: 1, max: 1 }, x, y, s); }
+function drawMenu() {
+  drawWorld(DG, false); drawHUDDemo();
+  ctx.fillStyle = 'rgba(12,14,20,.55)'; ctx.fillRect(0, 0, W, H);
+  const g2 = ctx.createRadialGradient(W / 2, 250, 50, W / 2, 250, 520); g2.addColorStop(0, 'rgba(20,22,30,.75)'); g2.addColorStop(1, 'rgba(20,22,30,0)'); ctx.fillStyle = g2; ctx.fillRect(0, 0, W, H);
+  const t = performance.now() / 1000;
+  ctx.save(); ctx.translate(W / 2 - 300, 170 + Math.sin(t * 2) * 6); drawBigPig(0, 0, 3.2, t); ctx.restore();
+  ctx.save(); ctx.translate(W / 2 + 300, 170 + Math.cos(t * 2) * 6); ctx.scale(-1, 1); drawBigPig(0, 0, 3.2, t + 1); ctx.restore();
+  textS('PURCEL', W / 2, 140, 92, '#ff9fb8', 'center', FH, '700', 'rgba(120,30,60,.6)');
+  textS('OVERFLOW', W / 2, 228, 92, '#ffd84d', 'center', FH, '700', 'rgba(120,80,0,.6)');
+  text('Porcii au invadat biroul. Programatorul are nevoie de tine.', W / 2, 296, 20, '#e6e9f0', 'center', FB, '700');
+  button(W / 2 - 150, 350, 300, 70, 'Joacă', goLevels, { color: '#2fa865', size: 30, r: 18 });
+  button(W / 2 - 150, 438, 145, 48, AU.music ? '♪ Muzică: da' : '♪ Muzică: nu', toggleMusic, { color: AU.music ? '#4f7cff' : '#4a5060', size: 16 });
+  button(W / 2 + 5, 438, 145, 48, AU.sfx ? 'Sunete: da' : 'Sunete: nu', toggleSfx, { color: AU.sfx ? '#4f7cff' : '#4a5060', size: 16 });
+  const tips = ['Pune capcane lângă traseu și pe covorul porcilor.', 'Aprobă comenzile bune ale lui Claude. Refuză-le pe cele dubioase.', 'Ai grijă la tokeni: indecizia costă.', 'Supraviețuiește 5 nivele și primești o friptură.'];
+  tips.forEach((s, i) => text('•  ' + s, W / 2 - 250, 528 + i * 28, 16, '#c9cedb', 'left', FB, '700'));
+  text('Un joc făcut cu Claude · click oriunde pentru sunet', W / 2, 700, 13, '#7c8496', 'center', FB, '700');
+}
+function drawHUDDemo() { ctx.fillStyle = '#181b24'; ctx.fillRect(0, 0, MW, MY); ctx.fillStyle = '#1b1e28'; ctx.fillRect(PX, 0, W - PX, H); ctx.fillRect(0, MY + MH, MW, H - MY - MH); }
+function goLevels() { scr = 'levels'; G = null; selShop = null; selTower = null; paused = false; FX = []; }
+function startLevel(li) { G = newGame(li); scr = 'play'; FX = []; paused = false; selShop = null; selTower = null; say(G, 'Alege o capcană din Magazin (dreapta) și pune-o lângă traseu.', 6); }
+function drawLevels() {
+  drawWorld(DG, false); drawHUDDemo();
+  ctx.fillStyle = 'rgba(12,14,20,.82)'; ctx.fillRect(0, 0, W, H);
+  textS('Alege nivelul', W / 2, 62, 48, '#fff');
+  const cw = 360, ch = 270;
+  LEVELS.forEach((lv, i) => {
+    const row = i < 3 ? 0 : 1, col = row ? i - 3 : i, n = row ? 2 : 3;
+    const x = W / 2 - (n * cw + (n - 1) * 24) / 2 + col * (cw + 24), y = 110 + row * (ch + 22);
+    const locked = i >= progress.unlocked, hv = !locked && hov(x, y, cw, ch);
+    ctx.fillStyle = 'rgba(0,0,0,.4)'; rr(x + 4, y + 6, cw, ch, 18); ctx.fill();
+    ctx.fillStyle = hv ? '#323849' : '#262b38'; rr(x, y - (hv ? 3 : 0), cw, ch, 18); ctx.fill();
+    ctx.strokeStyle = hv ? '#ffd84d' : 'rgba(255,255,255,.1)'; ctx.lineWidth = 2; ctx.stroke();
+    const yy = y - (hv ? 3 : 0);
+    ctx.save(); rr(x + 12, yy + 12, cw - 24, 180, 12); ctx.clip(); ctx.drawImage(getBG(i), x + 12, yy + 12, cw - 24, (cw - 24) * MH / MW);
+    if (locked) { ctx.fillStyle = 'rgba(10,12,18,.7)'; ctx.fillRect(x + 12, yy + 12, cw - 24, 180); }
+    ctx.restore();
+    if (locked) {
+      ctx.fillStyle = '#9aa1b0'; rr(x + cw / 2 - 16, yy + 98, 32, 26, 5); ctx.fill(); ctx.strokeStyle = '#9aa1b0'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(x + cw / 2, yy + 98, 11, Math.PI, 0); ctx.stroke();
+    }
+    text(`${i + 1}. ${lv.name}`, x + 18, yy + 214, 21, locked ? '#7d8494' : '#fff', 'left', FH, '600');
+    text(locked ? 'Termină nivelul anterior' : lv.sub, x + 18, yy + 242, 14, '#9aa2b3', 'left', FB, '700');
+    text(`${lv.paths.length} ${lv.paths.length > 1 ? 'intrări' : 'intrare'} · ${lv.waves} valuri`, x + cw - 16, yy + 214, 13, '#ffb3c6', 'right', FB, '800');
+    if (progress.done[i]) { ctx.fillStyle = '#2fa865'; rr(x + cw - 92, yy + 22, 72, 26, 13); ctx.fill(); text('✓ Gata', x + cw - 56, yy + 35, 13, '#fff', 'center', FB, '800'); }
+    if (!locked) region(x, y, cw, ch, () => { sfx('click'); startLevel(i); });
+  });
+  button(30, 24, 120, 42, '← Meniu', () => { scr = 'menu'; }, { color: '#5b6474', size: 17 });
+}
+function drawSteak(cx, cy, t) {
+  ctx.fillStyle = 'rgba(0,0,0,.35)'; ell(cx + 8, cy + 30, 210, 80); ctx.fill();
+  ctx.fillStyle = rg(cx - 40, cy - 30, 20, 230, ['#ffffff', '#e9ebef', '#c9ced6']); ell(cx, cy + 10, 205, 95); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,.08)'; ctx.lineWidth = 2; ell(cx, cy + 10, 165, 72); ctx.stroke();
+  const P = [[-125, 0], [-100, -48], [-30, -62], [42, -52], [108, -36], [128, 4], [98, 46], [20, 62], [-62, 56], [-114, 36]];
+  ctx.beginPath(); P.forEach(([a, b], i) => { const x = cx + a * 1.07, y = cy + b * 1.12; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.closePath();
+  ctx.fillStyle = lg(0, cy - 60, 0, cy + 60, ['#fbe6c2', '#e9c58f']); ctx.fill();
+  ctx.beginPath(); P.forEach(([a, b], i) => { const x = cx + a, y = cy + b; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.closePath();
+  ctx.fillStyle = rg(cx - 30, cy - 20, 10, 150, ['#b4652f', '#8c4520', '#5e2b12']); ctx.fill();
+  ctx.save(); ctx.clip();
+  ctx.strokeStyle = 'rgba(40,15,5,.85)'; ctx.lineWidth = 9; ctx.lineCap = 'round';
+  for (let i = -3; i <= 3; i++) { ctx.beginPath(); ctx.moveTo(cx + i * 34 - 30, cy - 60); ctx.lineTo(cx + i * 34 + 30, cy + 60); ctx.stroke(); }
+  ctx.fillStyle = 'rgba(255,220,170,.18)'; ell(cx - 30, cy - 25, 50, 14); ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle = '#2f6b2f'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(cx - 50, cy - 74); ctx.lineTo(cx + 60, cy - 92); ctx.stroke();
+  for (let i = 0; i < 9; i++) { const k = i / 8, lx = cx - 50 + 110 * k, ly = cy - 74 - 18 * k; ctx.strokeStyle = '#4c9a4c'; ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(lx - 6, ly - 12); ctx.moveTo(lx, ly); ctx.lineTo(lx + 7, ly + 10); ctx.stroke(); }
+  [[165, 20, 20], [140, 55, 17], [-160, 40, 19], [-140, -10, 15]].forEach(([a, b, r]) => { ctx.fillStyle = rg(cx + a - 5, cy + b - 5, 2, r, ['#ffe9a0', '#e6b84c', '#b98226']); ell(cx + a, cy + b, r, r * 0.85); ctx.fill(); ctx.fillStyle = 'rgba(60,140,60,.8)'; ell(cx + a - 3, cy + b - 4, 2, 1.5); ctx.fill(); });
+  ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  for (let k = 0; k < 4; k++) { const bx = cx - 75 + k * 50; ctx.beginPath(); for (let i = 0; i <= 14; i++) { const y = cy - 90 - i * 7, x = bx + Math.sin(i * 0.6 + t * 3 + k) * 9; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.globalAlpha = 0.55 + 0.25 * Math.sin(t * 2 + k); ctx.stroke(); ctx.globalAlpha = 1; }
+}
+function drawOverlay(kind) {
+  ctx.fillStyle = 'rgba(10,12,18,.7)'; ctx.fillRect(0, 0, W, H);
+  const w = 560, h = 300, x = (W - w) / 2, y = 190;
+  ctx.fillStyle = 'rgba(0,0,0,.45)'; rr(x + 5, y + 8, w, h, 22); ctx.fill();
+  ctx.fillStyle = lg(0, y, 0, y + h, ['#2c3140', '#1d212b']); rr(x, y, w, h, 22); ctx.fill(); ctx.strokeStyle = kind === 'win' ? '#5ee07a' : '#ff6b6b'; ctx.lineWidth = 2; ctx.stroke();
+  if (kind === 'win') {
+    textS(`Nivelul ${G.li + 1} terminat!`, W / 2, y + 62, 44, '#7ef0a0');
+    text('Porcii s-au retras. Programatorul respiră ușurat.', W / 2, y + 118, 17, '#dde2ec', 'center');
+    text(`Nervi rămași: ${G.hp}/20  ·  Lei: ${G.money}`, W / 2, y + 150, 16, '#ffd84d', 'center', FB, '800');
+    button(x + 40, y + 200, 230, 60, 'Nivelul următor', () => startLevel(G.li + 1), { color: '#2fa865', size: 21 });
+    button(x + w - 270, y + 200, 230, 60, 'Alege nivel', goLevels, { color: '#5b6474', size: 20 });
+  } else {
+    textS('Game over', W / 2, y + 62, 48, '#ff7a6b');
+    wrap(loseReason, w - 60, 18).forEach((l, i) => text(l, W / 2, y + 120 + i * 24, 18, '#dde2ec', 'center'));
+    button(x + 40, y + 200, 230, 60, 'Reia valul', () => { const s = JSON.parse(G.snap); G = s; G.snap = JSON.stringify({ ...s, snap: null }); scr = 'play'; FX = []; say(G, 'Încă o încercare! Schimbă strategia și pornește valul.'); }, { color: '#2fa865', size: 21, disabled: !G.snap });
+    button(x + w - 270, y + 200, 230, 60, 'Alege nivel', goLevels, { color: '#5b6474', size: 20 });
+  }
+}
+function drawFinal() {
+  const t = performance.now() / 1000;
+  ctx.fillStyle = rg(W / 2, H / 2, 50, 800, ['#4a2e1e', '#24160f', '#120b08']); ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(255,200,120,.06)'; for (let i = 0; i < 12; i++) { ctx.save(); ctx.translate(W / 2, 380); ctx.rotate(i * Math.PI / 6 + t * 0.1); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-60, -700); ctx.lineTo(60, -700); ctx.fill(); ctx.restore(); }
+  textS('AI CÂȘTIGAT!', W / 2, 90, 80, '#ffd84d', 'center', FH, '700', 'rgba(120,60,0,.7)');
+  text('Workspace-ul e curat. Codul compilează. Programatorul zâmbește.', W / 2, 158, 21, '#f3e6da', 'center');
+  drawSteak(W / 2, 400, t);
+  textS('Premiul tău: o friptură de porc, gătită perfect.', W / 2, 560, 28, '#ffc996', 'center', FH, '600');
+  text('Poftă bună! (Porcii n-au fost de acord, dar nimeni nu i-a întrebat.)', W / 2, 600, 16, '#c9b3a2', 'center');
+  button(W / 2 - 250, 638, 230, 54, 'Joacă din nou', () => { goLevels(); }, { color: '#2fa865', size: 20 });
+  button(W / 2 + 20, 638, 230, 54, 'Meniu', () => { scr = 'menu'; G = null; }, { color: '#5b6474', size: 20 });
+  if (Math.random() < 0.08) confetti(Math.random() * W, -10, 4);
+  drawFx();
+}
+
+// ---------------------------------------------------------------- bucla principală
+DG = demoSetup();
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (scr === 'menu' || scr === 'levels') { updateGame(DG, dt); updateFx(dt); }
+  else if (scr === 'play') { if (!paused) for (let i = 0; i < G.speed && scr === 'play'; i++) updateGame(G, dt); updateFx(paused ? 0 : dt * G.speed); }
+  else updateFx(dt);
+  ctx.setTransform(K, 0, 0, K, 0, 0); BTN = [];
+  ctx.fillStyle = '#0d0f14'; ctx.fillRect(0, 0, W, H);
+  if (scr === 'menu') drawMenu();
+  else if (scr === 'levels') drawLevels();
+  else if (scr === 'play') drawPlay();
+  else if (scr === 'win' || scr === 'lose') { drawPlay(); drawOverlay(scr); }
+  else if (scr === 'final') drawFinal();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+window.__po = { get G() { return G; }, set scr(v) { scr = v; }, get scr() { return scr; }, startLevel, startWave, LD, levelWin };
+</script>
+</body>
+</html>
