@@ -4,11 +4,11 @@ Tower defense în browser: porci roz invadează biroul unui programator. Apără
 
 **Joacă aici:** https://cosminflrn.github.io/purcel-overflow/
 
-- Campanie cu 5 nivele (fiecare cu hartă, eveniment și muzică proprii) + mod infinit
-- 7 apărări care se deblochează pe parcurs, 10 tipuri de porci, inclusiv Porcul Rege
-- Grafică: desen animat, retro 8-bit sau „realist” (luni dimineața)
+- 6 nivele, fiecare cu hartă, eveniment și muzică proprii (inclusiv lifturi care teleportează porcii)
+- 8 capcane care se deblochează pe parcurs, 10 tipuri de porci, inclusiv Porcul Rege
+- Se întinde pe tot ecranul, pe orice dispozitiv
 - Muzică și sunete generate din cod (Web Audio), fără fișiere externe
-- Pe iPhone: Share → Add to Home Screen pentru ecran complet
+- Pe iPhone: Share → Adaugă pe ecranul principal, pentru ecran complet
 
 ## Versiuni
 
