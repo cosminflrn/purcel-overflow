@@ -1,11 +1,15 @@
 # 🐷 Purcel Overflow
 
-Tower defense în browser: porci roz invadează biroul unui programator. Apără-l cu capse, cafea vărsată, imprimante și firewall-uri, și ai grijă ce aprobi când Claude cere voie să ruleze comenzi.
+Tower defense în browser: porci roz invadează biroul unui programator. Apără-l cu capsatoare, imprimante, firewall-uri și rățuște de debug, și ai grijă ce aprobi când Claude cere voie să ruleze comenzi.
 
 **Joacă aici:** https://cosminflrn.github.io/purcel-overflow/
 
-- 5 nivele cu hărți și trasee diferite, tot mai multe intrări
-- 5 tipuri de capcane cu upgrade până la nivelul 3
-- porci normali, rapizi, grași, hackeri, cu cască și Porcul Șef
-- muzică și sunete generate din cod (Web Audio), fără fișiere externe
-- totul într-un singur `index.html`
+- Campanie cu 5 nivele (fiecare cu hartă, eveniment și muzică proprii) + mod infinit
+- 7 apărări care se deblochează pe parcurs, 10 tipuri de porci, inclusiv Porcul Rege
+- Grafică: desen animat, retro 8-bit sau „realist” (luni dimineața)
+- Muzică și sunete generate din cod (Web Audio), fără fișiere externe
+- Pe iPhone: Share → Add to Home Screen pentru ecran complet
+
+## Versiuni
+
+Fiecare versiune are un tag git (`v1.0`, `v2.0`, ...). Pentru rollback la o versiune veche: `git checkout v1.0 -- index.html`, apoi commit și push.
