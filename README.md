@@ -12,4 +12,4 @@ Tower defense în browser: porci roz invadează biroul unui programator. Apără
 
 ## Versiuni
 
-Fiecare versiune are un tag git (`v1.0`, `v2.0`, ...). Pentru rollback la o versiune veche: `git checkout v1.0 -- index.html`, apoi commit și push.
+Fiecare versiune are o ramură salvată (`versiune-v1.0`, `versiune-v2.0`, ...), iar versiunea curentă apare în colțul din dreapta-jos al meniului. Pentru rollback: GitHub → Branches → alegi versiunea, sau `git checkout versiune-v1.0 -- index.html`, apoi commit și push pe `main`.
