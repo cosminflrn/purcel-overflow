@@ -29,7 +29,7 @@ canvas{position:fixed;left:0;top:0;display:block;touch-action:none}
 // =====================================================================
 //  PURCEL OVERFLOW — tower defense cu porci, un programator și Claude
 // =====================================================================
-const VERSION = 'v10.0';
+const VERSION = 'v10.1';
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 const TS = 50, COLS = 20, ROWS = 12, MY = 60, MW = 1000, MH = 600, PW = 280;
 const FB = '"Nunito","Segoe UI",system-ui,sans-serif', FM = 'Consolas,"Courier New",monospace';
@@ -767,7 +767,7 @@ const hardMode = true; // un singur mod: cu timp limitat între runde
 function newGame(li, o = {}) {
   return { li, demo: !!o.demo, sim: !!o.sim, money: LEVELS[li].money, bs: 0, wave: 0, state: 'build', pigs: [], towers: [], projs: [],
     queue: [], qT: 0, req: null, nextReq: 6, canim: null, face: { type: 'normal', t: 0 }, msg: '', msgT: 0, idc: 1, speed: 1, demoT: 1.5,
-    snap: null, time: 0, ev: null, evNext: 14, banners: [], result: null, kills: 0, wake: {}, hard: !!o.hard, buildT: o.hard ? 25 : 0, killsBy: {}, earned: 0, lastMoney: LEVELS[li].money, cl: { ok: 0, n: 0 } };
+    snap: null, time: 0, ev: null, evNext: 14, banners: [], result: null, kills: 0, wake: {}, hard: !!o.hard, buildT: o.hard ? 25 : 0, killsBy: {}, earned: 0, lastMoney: LEVELS[li].money, cl: { ok: 0, n: 0, badOk: 0, late: 0 }, leaks: {} };
 }
 const gwOf = g => LSTART[g.li] + g.wave + 1;
 const diffOf = g => LSTART[g.li] * DIFF_L * (0.7 + 0.1 * Math.min(3, g.wave)) + (g.wave + 1) * DIFF_W; // primele runde din fiecare nivel sunt mai blânde
@@ -853,7 +853,7 @@ function claudeAnim(g, type, line, sub) {
   else { sfx('sad'); g.face = { type: 'meh', t: 1.8 }; }
 }
 function answer(g, ok) {
-  const q = g.req; if (!q) return; g.req = null; if (g.cl) { g.cl.n++; if (ok !== q.bad) g.cl.ok++; } g.nextReq = 9 + Math.random() * 6 - 0.4 * g.li;
+  const q = g.req; if (!q) return; g.req = null; if (g.cl) { g.cl.n++; if (ok !== q.bad) g.cl.ok++; if (ok && q.bad) g.cl.badOk = (g.cl.badOk || 0) + 1; } g.nextReq = 9 + Math.random() * 6 - 0.4 * g.li;
   if (ok && !q.bad) { g.money += 20; addBS(g, -3); claudeAnim(g, 'good', GOOD[q.i][1], '+20 de lei · bullshit −3%'); }
   else if (ok && q.bad) { addBS(g, 12); claudeAnim(g, 'bad', BAD[q.i][1], 'bullshit +12%'); }
   else if (!ok && q.bad) { g.money += 15; addBS(g, -3); claudeAnim(g, 'good', pick(DENY_BAD), 'Bine prins! +15 lei · bullshit −3%'); }
@@ -901,7 +901,7 @@ function updateGame(g, dt) {
   // Claude
   if (!g.demo) {
     if (!g.req) { g.nextReq -= dt; if (g.nextReq <= 0) newReq(g); }
-    else { g.req.t += dt; if (g.req.t >= g.req.max) { g.req = null; addBS(g, 6); g.nextReq = 8; claudeAnim(g, 'sad', 'Am așteptat, am așteptat... și am renunțat.', 'Prea încet · bullshit +6%'); } }
+    else { g.req.t += dt; if (g.req.t >= g.req.max) { g.req = null; if (g.cl) { g.cl.n++; g.cl.late = (g.cl.late || 0) + 1; } addBS(g, 6); g.nextReq = 8; claudeAnim(g, 'sad', 'Am așteptat, am așteptat... și am renunțat.', 'Prea încet · bullshit +6%'); } }
   }
   // efecte de zonă
   for (const p of g.pigs) { p.slow = 1; p.boost = 1; p.bub = Math.max(0, p.bub - dt); }
@@ -939,7 +939,7 @@ function updateGame(g, dt) {
     if (p.seg >= pts.length - 1 && p.lift <= 0) {
       p.dead = true; const pd = PIGS[p.type]; g.face = { type: 'hurt', t: 0.9 };
       if (!g.demo) {
-        addBS(g, pd.bs); gsfx(g, 'ouch', 0.25); gsfx(g, 'oink', 0.1);
+        addBS(g, pd.bs); if (g.leaks) g.leaks[p.path] = (g.leaks[p.path] || 0) + 1; gsfx(g, 'ouch', 0.25); gsfx(g, 'oink', 0.1);
         if (!g.sim) { puff(p.x, p.y, '#ffc3d1', 8); shakeT = Math.max(shakeT, 0.25); shakeA = 1; flashT = 0.25; flashCol = '255,60,60'; floatText(p.x, p.y - 50, `+${pd.bs}% bullshit`, '#ff6b6b', 18); if (p.type === 'hacker') floatText(p.x, p.y - 72, 'Porcul hacker ți-a spart parola!', '#ffb38a', 15); }
       }
     }
@@ -1804,9 +1804,21 @@ function drawStats(g, x, y, w) { // statistici de final de nivel
   if (best) { ctx.save(); ctx.translate(x + 26, y + 102); ctx.scale(0.62, 0.62); drawTower(best[0], 0, 0, -Math.PI / 4, 0, 0, null); ctx.restore(); fitText(`Capcana vedetă: ${TOWERS[best[0]].name} · ${nr(best[1], 'porc', 'porci')}`, x + 50, y + 103, w - 64, 15, '#fff', 'left', '800'); }
   else text('Bullshit final: ' + Math.round(g.bs) + '%', x + w / 2, y + 103, 15, '#fff', 'center', '800');
 }
+function loseTip(g) { // sfatul lui Claude după game over, în funcție de ce a mers prost
+  const cl = g.cl || {}, lv = LEVELS[g.li], leaks = Object.entries(g.leaks || {}).sort((a, b) => b[1] - a[1]);
+  const side = pi => { const P = lv.paths[pi], a = P[0], b = P[1]; return b[0] > a[0] ? 'din stânga' : b[0] < a[0] ? 'din dreapta' : b[1] > a[1] ? 'de sus' : 'de jos'; };
+  const helps = g.towers.filter(t => TOWERS[t.type].cat === 'help').length, ups = g.towers.filter(t => t.lvl > 1).length;
+  if (cl.badOk >= 2) return `Ai aprobat ${nr(cl.badOk, 'comandă periculoasă', 'comenzi periculoase')}. Citește comanda înainte să apeși „Aprobă”, eu nu mă supăr dacă mă refuzi.`;
+  if (cl.late >= 2) return `M-ai lăsat să aștept de ${cl.late} ori. Răspunde-mi mai repede: fiecare comandă corectă scade bullshit-ul.`;
+  if (g.money >= 150) return `Ai rămas cu ${lei(g.money)} necheltuiți. Banii din buzunar nu opresc porci, capcanele da.`;
+  if (lv.paths.length > 1 && leaks.length && leaks[0][1] >= 3) { const sd = side(+leaks[0][0]), same = leaks.filter(l => side(+l[0]) === sd).reduce((a, l) => a + l[1], 0); return `Cei mai mulți porci (${same}) au trecut pe traseul ${sd}. Pune mai multe capcane acolo.`; }
+  if (!ups && g.towers.length >= 3) return 'Încearcă și upgrade-uri: o capcană pe nivelul 3 face cât câteva noi și ocupă un singur loc.';
+  if (!helps && g.li > 0) return 'Pune și capcane de ajutor: balonașele îi încetinesc, iar espressorul face capcanele din jur mai rapide.';
+  return 'Pune capcanele la coturi: acolo porcii trec prin raza lor de două ori.';
+}
 function drawOverlay(kind) {
   ctx.fillStyle = 'rgba(10,12,18,.7)'; ctx.fillRect(0, 0, W, H); region(0, 0, W, H, () => { });
-  const w = Math.min(600, W - 40), h = Math.min(H - 30, 380), x = (W - w) / 2, y = (H - h) / 2;
+  const w = Math.min(600, W - 40), h = Math.min(H - 30, kind === 'lose' ? 450 : 380), x = (W - w) / 2, y = (H - h) / 2;
   ctx.fillStyle = 'rgba(0,0,0,.45)'; rr(x + 5, y + 8, w, h, 22); ctx.fill();
   ctx.fillStyle = lg(0, y, 0, y + h, ['#2c3140', '#1d212b']); rr(x, y, w, h, 22); ctx.fill(); ctx.strokeStyle = kind === 'win' ? '#5ee07a' : '#ff6b6b'; ctx.lineWidth = 2; ctx.stroke();
   const bw = (w - 100) / 2;
@@ -1820,6 +1832,10 @@ function drawOverlay(kind) {
     textS('Game over', W / 2, y + 54, 46, '#ff7a6b');
     wrap(loseReason, w - 60, 17).slice(0, 2).forEach((l, i) => text(l, W / 2, y + 100 + i * 22, 17, '#dde2ec', 'center'));
     drawStats(G, x + 30, y + 146, w - 60);
+    const ty = y + 280; ctx.fillStyle = 'rgba(217,119,87,.14)'; rr(x + 30, ty, w - 60, 66, 12); ctx.fill(); ctx.strokeStyle = 'rgba(217,119,87,.45)'; ctx.lineWidth = 1.5; ctx.stroke();
+    drawClaudeLogo(x + 56, ty + 33, 12, '#d97757', performance.now() / 1500);
+    text('Sfatul lui Claude', x + 78, ty + 16, 12, '#f0a58a', 'left', '900');
+    wrap(loseTip(G), w - 130, 13.5, '700').slice(0, 2).forEach((l, i) => text(l, x + 78, ty + 35 + i * 17, 13.5, '#f3e6da', 'left', '700'));
     button(x + 40, y + h - 84, bw, 60, 'Reia runda', () => { restoreRound(); say(G, 'Încă o încercare! Schimbă strategia și pornește runda.'); }, { color: '#2fa865', size: 20, disabled: !G.snap });
     button(x + 60 + bw, y + h - 84, bw, 60, 'Meniu principal', goMenu, { color: '#5b6474', size: 19 });
   }
