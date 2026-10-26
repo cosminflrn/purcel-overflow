@@ -26,6 +26,8 @@ Pune capcane lângă hol, ține bullshit-ul jos și ai grijă ce aprobi când Cl
   - de atac: Capsator, Imprimantă, Ventilator, Firewall, Feliator, Aspirator
   - de ajutor: Balonașe (îi prind în bule de săpun) și Espressor (face capcanele din jur mai rapide și mai puternice)
 - ⏱️ **Contra cronometru**: ai timp limitat între runde, iar dacă pornești runda mai repede primești bonus de viteză
+- 📊 **Statistici la final de nivel**: porci opriți, lei câștigați, răspunsuri corecte la Claude, timp și capcana vedetă
+- ⏩ **Viteză 2x** pentru rundele în care apărarea ține, plus „Reia runda” și „Reia nivelul” din pauză
 - ⏸️ **Pauză automată** când schimbi tabul; muzica merge mai departe (o oprești din butonul de sunet)
 - 🐖 **10 tipuri de porci**, de la Porcul de birou până la Porcul Rege, care face pământul să tremure
 - 💥 **Fiecare capcană are animația ei** când doboară un porc. Uneori sare și câte o friptură
@@ -50,11 +52,12 @@ Jocul a fost construit de Cosmin împreună cu Claude, pornind de la un `.exe` s
 
 ## Versiuni
 
-Versiunea curentă apare în colțul din dreapta-jos al meniului. Fiecare versiune are și o ramură salvată (`versiune-v1.0` … `versiune-v9.0`).
+Versiunea curentă apare în colțul din dreapta-jos al meniului. Fiecare versiune are și o ramură salvată (`versiune-v1.0` … `versiune-v10.0`).
 
 | Versiune | Ce a adus |
 |---|---|
-| **v9.0** | Un singur mod de joc (cu cronometru), joc pe tot ecranul pe telefon cu butoanele în zona sigură, butonul de fullscreen ascuns când jocul e deja aplicație pe ecranul principal, „capcane de atac / de ajutor”, muzica se schimbă instant |
+| **v10.0** | Statistici la final de nivel, buton 2x, „Reia runda” / „Reia nivelul” în pauză, panou de upgrade mai aerisit, sunete noi (cronometru, upgrade maxim, porc nou, bonus de viteză), margine mai mică în dreapta pe telefon |
+| v9.0 | Un singur mod de joc (cu cronometru), joc pe tot ecranul pe telefon cu butoanele în zona sigură, butonul de fullscreen ascuns când jocul e deja aplicație pe ecranul principal, „capcane de atac / de ajutor”, muzica se schimbă instant |
 | v8.0 | Mod greu implicit și rebalansat, pauză automată la schimbarea tabului, tutorialul se închide la click în afară, explicații la Atac/Ajutor, Porcul Rege mai mic, progres simplificat, pluraluri corecte („20 de lei”, „1 porc”) |
 | v7.0 | Mod greu (timp limitat între runde, bonus pentru start rapid, jocul merge și cu alt tab deschis), muzica se oprește la pauză, porc gurmand în meniu, balonașe și pentru Porcul Rege, lanțul regelui refăcut |
 | v6.0 | Animații de moarte diferite pentru fiecare capcană, friptura, balonașe mai echilibrate, margini sigure pe telefon, fullscreen din meniu, tutorial mai rapid |
