@@ -28,7 +28,7 @@ canvas{position:fixed;left:0;top:0;display:block;touch-action:none}
 // =====================================================================
 //  PURCEL OVERFLOW — tower defense cu porci, un programator și Claude
 // =====================================================================
-const VERSION = 'v4.0';
+const VERSION = 'v5.0';
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 const TS = 50, COLS = 20, ROWS = 12, MY = 60, MW = 1000, MH = 600, PW = 280;
 const FB = '"Nunito","Segoe UI",system-ui,sans-serif', FM = 'Consolas,"Courier New",monospace';
@@ -83,18 +83,18 @@ const TOWERS = {
     desc: 'Rază mică, trage foarte repede într-un singur porc. Ieftin și bun aproape de hol.', ups: ['Capse mai grele: +60% daune.', 'Dublă capsare: trage în doi porci deodată.'] },
   printer: { cat: 'atk', name: 'Imprimantă', lvl: 1, cost: 170, range: 4.2, rate: 1.6, dmg: 24, splash: 1.0,
     desc: 'Rază foarte mare. Aruncă topuri de hârtie care lovesc tot grupul unde aterizează.', ups: ['Toner extra: +60% daune și rază mai mare.', 'Format A3: explozie mult mai mare.'] },
-  fan: { cat: 'atk', name: 'Ventilator de server', lvl: 2, cost: 180, range: 1.9, rate: 1.8, dmg: 6, push: 45,
-    desc: 'Suflă porcii din jur înapoi pe hol. Nu-l mișcă pe Porcul Rege.', ups: ['Turație mare: îi suflă mai departe.', 'Turbo: suflă și mult mai des.'] },
+  fan: { cat: 'atk', name: 'Ventilator', lvl: 2, cost: 180, range: 1.9, rate: 1.8, dmg: 6, push: 45,
+    desc: 'Ventilator de server: suflă porcii din jur înapoi pe hol. Nu-l mișcă pe Porcul Rege.', ups: ['Turație mare: îi suflă mai departe.', 'Turbo: suflă și mult mai des.'] },
   firewall: { cat: 'atk', name: 'Firewall', lvl: 3, cost: 200, range: 1.5, dps: 26,
     desc: 'Arde continuu tot ce trece pe lângă el. Excelent pe colțurile holului.', ups: ['Ardere +60%.', 'Firewall enterprise: rază mai mare.'] },
-  slicer: { cat: 'atk', name: 'Feliator de ananas', lvl: 4, cost: 220, range: 2.6, rate: 1.2, dmg: 22, bounce: 3,
-    desc: 'Aruncă o felie de ananas ca un bumerang, care ricoșează din porc în porc.', ups: ['Ricoșează în 5 porci.', 'Ricoșează în 7 porci, +60% daune.'] },
-  vacuum: { cat: 'atk', name: 'Robot aspirator', lvl: 5, cost: 240, range: 2.2, dps: 34,
-    desc: 'Pune-l lângă hol: patrulează singur pe hol și îi lovește pe porcii pe care îi atinge.', ups: ['Baterie mare: patrulează mai departe.', 'Mod turbo: +60% daune.'] },
-  bubbles: { cat: 'help', name: 'Bule de săpun', lvl: 0, cost: 110, range: 1.8, slow: 0.45,
-    desc: 'Prinde porcii din jur în bule de săpun. Merg mult mai încet.', ups: ['Bule mai lipicioase: îi încetinesc mai tare.', 'Bule uriașe: rază mai mare.'] },
-  coffee: { cat: 'help', name: 'Tonomat de cafea', lvl: 1, cost: 150, range: 2.5, buff: 0.25,
-    desc: 'Capcanele din jur trag cu 25% mai tare și mai des.', ups: ['Dublu espresso: +35%.', 'Cafea de specialitate: +45% și rază mai mare.'] },
+  slicer: { cat: 'atk', name: 'Feliator', lvl: 4, cost: 220, range: 2.6, rate: 1.2, dmg: 22, bounce: 3,
+    desc: 'Aruncă o felie de ananas ca pe un bumerang, care ricoșează din porc în porc.', ups: ['Ricoșează în 5 porci.', 'Ricoșează în 7 porci, +60% daune.'] },
+  vacuum: { cat: 'atk', name: 'Aspirator', lvl: 5, cost: 240, range: 2.2, dps: 34,
+    desc: 'Robot aspirator: pune-l lângă hol și patrulează singur, lovind porcii pe care îi atinge.', ups: ['Baterie mare: patrulează mai departe.', 'Mod turbo: +60% daune.'] },
+  bubbles: { cat: 'help', name: 'Balonașe', lvl: 0, cost: 110, range: 1.8, slow: 0.45,
+    desc: 'Balonașe de săpun care prind porcii din jur. Prinși în balon, merg mult mai încet.', ups: ['Balonașe mai lipicioase: îi încetinesc mai tare.', 'Balonașe uriașe: rază mai mare.'] },
+  coffee: { cat: 'help', name: 'Espressor', lvl: 1, cost: 150, range: 2.5, buff: 0.25,
+    desc: 'Capcanele de atac din jur trag cu 25% mai tare și mai des.', ups: ['Dublu espresso: +35%.', 'Cafea de specialitate: +45% și rază mai mare.'] },
 };
 const ATK = ['stapler', 'printer', 'fan', 'firewall', 'slicer', 'vacuum'], HELP = ['bubbles', 'coffee'], TORDER = ATK.concat(HELP);
 const upCost = t => Math.round(TOWERS[t.type].cost * 0.75 * t.lvl);
@@ -261,7 +261,7 @@ const LD = LEVELS.map((lv, li) => {
     d.decor.push(o); k++;
   }
   // intrări (unde holul trece marginea hărții)
-  d.entries = []; d.paths.forEach(pts => { for (let i = 1; i < pts.length; i++) { const a = pts[i - 1], b = pts[i]; if (!inb(a.c, a.r) && inb(b.c, b.r) && !b.tp) { const k = d.entries.find(e => e.c === b.c && e.r === b.r); if (!k) d.entries.push({ c: b.c, r: b.r, dx: Math.sign(b.c - a.c), dy: Math.sign(b.r - a.r) }); break; } } });
+  d.entries = []; d.paths.forEach(pts => { for (let i = 1; i < pts.length; i++) { const a = pts[i - 1], b = pts[i]; if (b.tp || inb(a.c, a.r)) continue; const dx = Math.sign(b.c - a.c), dy = Math.sign(b.r - a.r); let c = a.c, r = a.r, n = 0; while (!inb(c, r) && (c !== b.c || r !== b.r) && n++ < 60) { c += dx; r += dy; } if (inb(c, r)) { if (!d.entries.find(e => e.c === c && e.r === r)) d.entries.push({ c, r, dx, dy }); break; } } });
   return d;
 });
 function posAt(li, pi, dist) {
@@ -360,6 +360,7 @@ const SFX = {
   whoosh: t => { nz(t, 0.5, 0.35, 'bandpass', 700, null, 0.8); nz(t + 0.1, 0.4, 0.2, 'bandpass', 1400, null, 1); },
   boomer: t => { nz(t, 0.25, 0.18, 'bandpass', 3000, null, 3); osc('triangle', 900, t, 0.2, 0.05, null, 1400); },
   chop: t => { nz(t, 0.06, 0.3, 'bandpass', 4500, null, 4); },
+  pop: t => { osc('sine', 950, t, 0.07, 0.18, null, 280); nz(t, 0.04, 0.15, 'highpass', 3000); },
   bubble: t => { for (let i = 0; i < 3; i++) osc('sine', 500 + Math.random() * 600, t + i * 0.05, 0.08, 0.08, null, 1400); },
   vroom: t => { osc('sawtooth', 90, t, 0.3, 0.06, null, 120, ['lowpass', 500]); },
   coin: t => { osc('square', 988, t, 0.07, 0.06); osc('square', 1319, t + 0.07, 0.14, 0.06); },
@@ -615,7 +616,7 @@ function drawBG(x, li) {
   // tiroliană
   for (const [a, b] of d.zips) { for (const p of [a, b]) { x.fillStyle = '#6b4a2a'; x.fillRect(p.x - 4, p.y - MY - 26, 8, 30); x.fillStyle = '#3d2a17'; x.fillRect(p.x - 10, p.y - MY + 2, 20, 6); } x.strokeStyle = '#d8d0c0'; x.lineWidth = 3; x.beginPath(); x.moveTo(a.x, a.y - MY - 22); x.quadraticCurveTo((a.x + b.x) / 2, (a.y + b.y) / 2 - MY + 4, b.x, b.y - MY - 22); x.stroke(); }
   // lumină roz la intrări
-  for (const e of d.entries) { const cx = e.c * TS + 25 - e.dx * 25, cy = e.r * TS + 25 - e.dy * 25; const q = x.createRadialGradient(cx, cy, 4, cx, cy, 70); q.addColorStop(0, 'rgba(255,110,160,.7)'); q.addColorStop(1, 'rgba(255,110,160,0)'); x.fillStyle = q; x.beginPath(); x.arc(cx, cy, 70, 0, 7); x.fill(); }
+  for (const e of d.entries) { const cx = e.c * TS + 25 - e.dx * 25, cy = e.r * TS + 25 - e.dy * 25; const q = x.createRadialGradient(cx, cy, 2, cx, cy, 46); q.addColorStop(0, 'rgba(255,110,160,.75)'); q.addColorStop(1, 'rgba(255,110,160,0)'); x.fillStyle = q; x.beginPath(); x.arc(cx, cy, 46, 0, 7); x.fill(); }
   for (const o of d.decor) if (o.type !== 'dev' && o.type !== 'dancefloor') drawDecor(x, o);
   // indicator zona de liniște
   let zr = null; for (let r = 0; r < ROWS && !zr; r++) for (let c = 0; c < COLS; c++) if (d.zoneT[r][c]) { zr = [c, r]; break; }
@@ -711,6 +712,7 @@ function drawFx(ui) {
     if (p.k === 'text') textS(p.t, p.x, p.y, p.s, p.c, 'center', '900');
     else if (p.k === 'conf') { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.fillStyle = p.c; ctx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); ctx.restore(); }
     else if (p.k === 'smoke') { ctx.globalAlpha = a * 0.5; ell(p.x, p.y, p.s, p.s); ctx.fillStyle = '#6b6f78'; ctx.fill(); }
+    else if (p.k === 'ghost') { const k = 1 - a; ctx.save(); ctx.globalAlpha = a * 0.85; ctx.translate(p.x, p.y); ctx.rotate(k * 0.9 * (p.face || 1)); ctx.scale(1 + k * 0.4, 1 - k * 0.3); drawPig({ type: p.type, face: p.face || 1, anim: 0, flash: 1, slow: 1, hp: 1, max: 1, id: 1, bub: 0 }, 0, 0, 1, 0); ctx.restore(); }
     else if (p.k === 'wind') { ctx.strokeStyle = p.c; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - Math.cos(p.r) * p.s, p.y - Math.sin(p.r) * p.s); ctx.stroke(); }
     else { const k = p.k === 'puff' ? 1.5 - a * 0.5 : 1; ell(p.x, p.y, p.s * k, p.s * k); ctx.fillStyle = p.c; ctx.fill(); }
   }
@@ -734,7 +736,7 @@ function banner(g, b) { if (g.demo || g.sim) return; b.t = 0; b.dur = b.dur || 3
 function towerAt(g, c, r) { return g.towers.find(t => t.c === c && t.r === r); }
 function canPlace(g, c, r) { return inb(c, r) && !towerAt(g, c, r) && !LD[g.li].blocked[r][c]; }
 function newTower(g, type, c, r, lvl = 1) {
-  const t = { id: g.idc++, type, c, r, lvl, invest: TOWERS[type].cost, cd: 0, ang: -Math.PI / 2, fx: 0, buff: 1, spin: 0 };
+  const t = { id: g.idc++, type, c, r, lvl, invest: TOWERS[type].cost, cd: 0, ang: -Math.PI / 2, fx: 0, buff: 1, spin: 0, born: g.demo ? -9 : g.time };
   if (type === 'vacuum') { // găsește cea mai apropiată bucată de hol
     const cx = c * TS + 25, cy = MY + r * TS + 25; let best = null;
     LD[g.li].paths.forEach((pts, pi) => { for (let d = 0; d < LD[g.li].lens[pi]; d += 10) { const p = posAt(g.li, pi, d); if (!inb(Math.floor(p.x / TS), Math.floor((p.y - MY) / TS))) continue; const dd = Math.hypot(p.x - cx, p.y - cy); if (!best || dd < best.dd) best = { pi, d, dd }; } });
@@ -775,7 +777,7 @@ function damage(g, p, amt) {
   if (p.dead) return; p.hp -= amt; p.flash = 0.08;
   if (p.hp <= 0) {
     p.dead = true; const d = PIGS[p.type]; g.money += d.reward; g.kills++;
-    if (!g.sim) { puff(p.x, p.y, '#ffc3d1', 10); floatText(p.x, p.y - 22, `+${d.reward} lei`, '#ffd84d', 15); }
+    if (!g.sim) { puff(p.x, p.y, '#ffc3d1', 8); FX.push({ k: 'ghost', x: p.x, y: p.y, vx: 0, vy: -55, l: 0.5, m: 0.5, type: p.type, face: p.face }); floatText(p.x, p.y - 22, `+${d.reward} lei`, '#ffd84d', 15); }
     gsfx(g, 'squeal', 0.12);
     if (d.split) for (let i = 0; i < d.split; i++) spawnPig(g, 'intern', p.path, p);
     if (p.type === 'king' && !g.sim) { confetti(p.x, p.y, 50); shakeT = 0.5; shakeA = 1.4; }
@@ -858,6 +860,7 @@ function updateGame(g, dt) {
   for (const p of g.pigs) {
     if (p.dead) continue;
     if (p.flash > 0) p.flash -= dt; if (p.dodgeT > 0) p.dodgeT -= dt;
+    if (p.bub > 0) p.bubT = (p.bubT || 0) + dt; else if (p.bubT > 0) { if (p.bubT > 0.2 && !g.sim) { gsfx(g, 'pop', 0.08); for (let i = 0; i < 8; i++) { const a = i * 0.785; FX.push({ k: 'spark', x: p.x + Math.cos(a) * 22, y: p.y + Math.sin(a) * 18, vx: Math.cos(a) * 60, vy: Math.sin(a) * 60, l: 0.3, m: 0.3, c: 'rgba(220,240,255,.9)', s: 2.5 }); } } p.bubT = 0; }
     const pts = d.paths[p.path];
     if (p.lift > 0) { p.lift -= dt; if (p.lift <= 0) { const a = pts[p.seg + 1]; p.x = a.x; p.y = a.y; p.seg++; } continue; }
     const tc = Math.floor(p.x / TS), tr = Math.floor((p.y - MY) / TS), wet = inb(tc, tr) && d.wetT[tr][tc] ? 1.6 : 1;
@@ -962,7 +965,8 @@ function updateGame(g, dt) {
 
 // =================================================================== DESEN: porci
 function drawPig(p, x, y, sc = 1, time = 0) {
-  const d = PIGS[p.type], s = d.size * sc, f = p.face, t = p.type;
+  const d = PIGS[p.type], s = d.size * sc, f = p.face, t = p.type, bt = p.bubT || 0;
+  if (bt > 0) y -= Math.min(1, bt * 3) * (4 + Math.sin(time * 5 + p.id) * 2) * s;
   ctx.save(); ctx.translate(x, y);
   ctx.fillStyle = 'rgba(0,0,0,.22)'; ell(0, 14 * s, 17 * s, 5 * s); ctx.fill();
   ctx.scale(f * s, s);
@@ -1008,16 +1012,17 @@ function drawPig(p, x, y, sc = 1, time = 0) {
     ctx.fillStyle = lg(0, hy - 20, 0, hy - 8, ['#ffe680', '#e0a516']); ctx.beginPath();
     ctx.moveTo(hx - 8, hy - 7); ctx.lineTo(hx - 8, hy - 17); ctx.lineTo(hx - 4, hy - 12); ctx.lineTo(hx, hy - 19); ctx.lineTo(hx + 4, hy - 12); ctx.lineTo(hx + 8, hy - 17); ctx.lineTo(hx + 8, hy - 7); ctx.fill();
     ctx.fillStyle = '#e8434b'; ell(hx, hy - 12, 1.6, 1.6); ctx.fill(); ctx.fillStyle = '#4fa3ff'; ell(hx - 5, hy - 10, 1, 1); ctx.fill(); ell(hx + 5, hy - 10, 1, 1); ctx.fill();
-    // ochelari de soare care acoperă tot ochiul
-    ctx.fillStyle = '#0d0d10'; rr(hx - 2.5, hy - 6.5, 10.5, 6, 2.5); ctx.fill(); ctx.fillRect(hx - 6, hy - 5.5, 4, 1.2);
-    ctx.fillStyle = 'rgba(255,255,255,.45)'; ctx.fillRect(hx, hy - 5, 3, 1.2);
     ctx.strokeStyle = '#f2c94c'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.arc(hx - 2, hy + 4, 7, 0.3, Math.PI * 0.9); ctx.stroke();
   }
   // nuanță pe tot porcul (lovit / încetinit)
-  const tint = p.flash > 0 ? 'rgba(255,255,255,.6)' : p.slow < 1 ? 'rgba(130,200,255,.35)' : null;
-  if (tint) { ctx.fillStyle = tint; ctx.beginPath(); ctx.ellipse(0, 0, 18, 12.5, 0, 0, 7); ctx.ellipse(hx, hy, 10.5, 9.5, 0, 0, 7); ctx.fill('nonzero'); }
+  const tint = p.flash > 0 ? 'rgba(255,255,255,.6)' : p.slow < 1 ? 'rgba(130,200,255,.38)' : null;
+  if (tint) { ctx.fillStyle = tint; ctx.beginPath(); ctx.ellipse(0, 0, 18, 12.5, 0, 0, 7); ctx.moveTo(hx + 10.5, hy); ctx.ellipse(hx, hy, 10.5, 9.5, 0, 0, 7); ctx.moveTo(hx + 14, hy + 1.5); ctx.ellipse(hx + 9, hy + 1.5, 5, 4.3, 0, 0, 7); ctx.fill(); ctx.beginPath(); ctx.moveTo(hx - 9, hy - 6); ctx.lineTo(hx - 6, hy - 16); ctx.lineTo(hx - 1, hy - 7); ctx.moveTo(hx + 1, hy - 7); ctx.lineTo(hx + 6, hy - 16); ctx.lineTo(hx + 9, hy - 5); ctx.fill(); for (const lx of [-12, 5, -6, 10]) { ctx.fillRect(lx, 3, 6, legH); } }
   ctx.globalAlpha = 1; ctx.restore();
-  if (p.bub > 0) { const r = 24 * s; ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = 1.5; ctx.fillStyle = rg(x - r * 0.3, y - r * 0.4, 1, r, ['rgba(255,255,255,.25)', 'rgba(170,220,255,.12)', 'rgba(255,160,230,.2)']); ell(x, y - 2 * s, r, r * 0.85); ctx.fill(); ctx.stroke(); ctx.fillStyle = 'rgba(255,255,255,.8)'; ell(x - r * 0.4, y - r * 0.45, r * 0.15, r * 0.08); ctx.fill(); }
+  if (bt > 0) { const k = Math.min(1, bt * 4), e = 1 + 2.2 * Math.pow(k - 1, 3) + 1.2 * Math.pow(k - 1, 2), wob = Math.sin(time * 9 + p.id) * 0.04, r = 28 * s * e, bx = x + 5 * s * f, by = y - 2 * s;
+    ctx.save(); ctx.translate(bx, by); ctx.scale(1 + wob, 1 - wob);
+    ctx.fillStyle = rg(-r * 0.3, -r * 0.4, 1, r, ['rgba(255,255,255,.28)', 'rgba(170,220,255,.12)', 'rgba(255,160,230,.24)']); ell(0, 0, r, r * 0.88); ctx.fill();
+    ctx.lineWidth = 2; for (let i = 0; i < 3; i++) { ctx.strokeStyle = `hsla(${(time * 90 + i * 120) % 360},90%,75%,.55)`; ctx.beginPath(); ctx.ellipse(0, 0, r, r * 0.88, 0, time * 1.5 + i * 2.1, time * 1.5 + i * 2.1 + 1.6); ctx.stroke(); }
+    ctx.fillStyle = 'rgba(255,255,255,.85)'; ell(-r * 0.42, -r * 0.42, r * 0.17, r * 0.09); ctx.fill(); ell(-r * 0.2, -r * 0.6, r * 0.06, r * 0.04); ctx.fill(); ctx.restore(); }
   if (p.hp < p.max) {
     const w = 30 * s, fr = clamp(p.hp / p.max, 0, 1), by = y - 26 * s;
     ctx.fillStyle = 'rgba(0,0,0,.55)'; rr(x - w / 2 - 1, by - 1, w + 2, 6, 3); ctx.fill();
@@ -1246,7 +1251,7 @@ function drawWorld(g, hints) {
   const sorted = g.pigs.filter(p => p.lift <= 0).sort((a, b) => a.y - b.y);
   const chorus = g.ev && g.ev.type === 'chorus';
   for (const p of sorted) drawPig(p, p.x + p.ox * (chorus ? 0.1 : 1), p.y + p.oy * (chorus ? 0.1 : 1) + (chorus ? Math.sin(g.time * 14 + p.id) * 3 : 0), 1, g.time);
-  for (const t of g.towers) { drawTower(t.type, t.c * TS + 25, MY + t.r * TS + 25, t.ang, t.fx, g.time, t); if (!g.demo) towerDots(t, g); }
+  for (const t of g.towers) { const cx = t.c * TS + 25, cy = MY + t.r * TS + 25, k = t.born != null ? clamp((g.time - t.born) / 0.4, 0, 1) : 1; ctx.save(); if (k < 1) { const e = 1 + 2.7 * Math.pow(k - 1, 3) + 1.7 * Math.pow(k - 1, 2); ctx.translate(cx, cy); ctx.scale(e, e); ctx.translate(-cx, -cy); } drawTower(t.type, cx, cy, t.ang, t.fx, g.time, t); if (!g.demo) towerDots(t, g); ctx.restore(); }
   for (const pr of g.projs) {
     if (pr.k === 'staple') { ctx.save(); ctx.translate(pr.x, pr.y); ctx.rotate(pr.a || 0); ctx.strokeStyle = '#e9edf2'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-4, -3); ctx.lineTo(-4, 0); ctx.lineTo(4, 0); ctx.lineTo(4, -3); ctx.stroke(); ctx.restore(); }
     else if (pr.k === 'paper') { const k = pr.t / pr.dur, x = pr.sx + (pr.tx - pr.sx) * k, y = pr.sy + (pr.ty - pr.sy) * k - Math.sin(k * Math.PI) * 60;
@@ -1270,7 +1275,7 @@ function drawWorld(g, hints) {
 }
 // săgeți animate: de unde vin porcii, încotro merg și ce fac lifturile (doar înainte de prima rundă)
 function drawHints(g) {
-  const d = LD[g.li], t = g.time;
+  const d = LD[g.li], t = performance.now() / 1000;
   ctx.fillStyle = '#fff';
   d.paths.forEach((pts, pi) => {
     const L = d.lens[pi];
@@ -1304,10 +1309,10 @@ const overlayOpen = () => scr !== 'play' || paused || tut || unlockPop || restar
 function drawPlay() {
   const g = G, over = overlayOpen();
   if (!over) region(0, MY, AW, AH, mapClick);
-  worldLayer(g, 0, MY, AW, AH, VIEW.s, VIEW.ox, VIEW.oy, g.wave === 0 && g.state === 'build');
+  worldLayer(g, 0, MY, AW, AH, VIEW.s, VIEW.ox, VIEW.oy, g.state === 'build' || paused);
   inMapTransform(() => {
     const ring = (cx, cy, R, ok) => { ctx.fillStyle = ok ? 'rgba(120,200,255,.14)' : 'rgba(255,90,90,.12)'; ell(cx, cy, R, R); ctx.fill(); ctx.strokeStyle = ok ? 'rgba(160,215,255,.75)' : 'rgba(255,110,110,.6)'; ctx.lineWidth = 1.5; ctx.stroke(); };
-    const greenBuff = (cx, cy, R) => { for (const o of g.towers) if (o.type !== 'coffee' && o.type !== 'bubbles' && Math.hypot(o.c * TS + 25 - cx, MY + o.r * TS + 25 - cy) <= R + 1) { ctx.strokeStyle = 'rgba(80,255,130,.95)'; ctx.lineWidth = 3; ell(o.c * TS + 25, MY + o.r * TS + 25, 24, 24); ctx.stroke(); ctx.fillStyle = 'rgba(80,255,130,.18)'; ctx.fill(); } };
+    const greenBuff = (cx, cy, R) => { for (const o of g.towers) if (o.type !== 'coffee' && o.type !== 'bubbles' && Math.hypot(o.c * TS + 25 - cx, MY + o.r * TS + 25 - cy) <= R + 1) { ctx.strokeStyle = 'rgba(80,255,130,.95)'; ctx.lineWidth = 3; ell(o.c * TS + 25, MY + o.r * TS + 22, 29, 29); ctx.stroke(); ctx.fillStyle = 'rgba(80,255,130,.18)'; ctx.fill(); } };
     if (!over && selShop) {
       const m = toMap(), c = Math.floor(m.x / TS), r = Math.floor((m.y - MY) / TS);
       if (mouse.x < AW && mouse.y > MY && inb(c, r)) {
@@ -1318,7 +1323,7 @@ function drawPlay() {
       }
     }
     const st = g.towers.find(t => t.id === selTower);
-    if (st) { const cx = st.c * TS + 25, cy = MY + st.r * TS + 25, R = towerRange(st); ring(cx, cy, R, true); if (st.type === 'coffee') greenBuff(cx, cy, R); ctx.strokeStyle = '#ffd84d'; ctx.lineWidth = 2.5; ctx.strokeRect(st.c * TS + 1, MY + st.r * TS + 1, TS - 2, TS - 2); }
+    if (st) { const cx = st.c * TS + 25, cy = MY + st.r * TS + 25, R = towerRange(st); ring(cx, cy, R, true); if (st.type === 'coffee') greenBuff(cx, cy, R); }
   });
   drawBanner(g); drawToast(g);
   drawHUD(g); drawPanel(g); drawFx(true);
@@ -1327,8 +1332,8 @@ function drawPlay() {
   if (restartAsk) drawRestartAsk();
 }
 function drawPause() {
-  ctx.fillStyle = 'rgba(10,12,18,.72)'; ctx.fillRect(0, 0, W, H); region(0, 0, W, H, () => { });
-  const w = 420, h = 330, x = (W - w) / 2, y = (H - h) / 2;
+  ctx.fillStyle = 'rgba(10,12,18,.72)'; ctx.fillRect(0, 0, W, H); region(0, 0, W, H, () => { paused = false; });
+  const w = 420, h = 330, x = (W - w) / 2, y = (H - h) / 2; region(x, y, w, h, () => { });
   ctx.fillStyle = lg(0, y, 0, y + h, ['#2c3140', '#1d212b']); rr(x, y, w, h, 24); ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,.12)'; ctx.lineWidth = 1.5; ctx.stroke();
   textS('Pauză', W / 2, y + 46, 42, '#fff');
   button(x + 40, y + 84, w - 80, 58, 'Continuă', () => paused = false, { color: '#2fa865', size: 24, icon: ICON.play });
@@ -1337,8 +1342,8 @@ function drawPause() {
   text('Dacă ieși acum, pierzi progresul din nivelul curent.', W / 2, y + 300, 13, '#8f97a8', 'center');
 }
 function drawRestartAsk() {
-  ctx.fillStyle = 'rgba(10,12,18,.72)'; ctx.fillRect(0, 0, W, H); region(0, 0, W, H, () => { });
-  const w = 420, h = 200, x = (W - w) / 2, y = (H - h) / 2;
+  ctx.fillStyle = 'rgba(10,12,18,.72)'; ctx.fillRect(0, 0, W, H); region(0, 0, W, H, () => { restartAsk = false; });
+  const w = 420, h = 200, x = (W - w) / 2, y = (H - h) / 2; region(x, y, w, h, () => { });
   ctx.fillStyle = lg(0, y, 0, y + h, ['#2c3140', '#1d212b']); rr(x, y, w, h, 24); ctx.fill();
   textS('Reiei nivelul?', W / 2, y + 46, 30, '#fff');
   text('Tot progresul din nivel se pierde.', W / 2, y + 86, 15, '#c9cedb', 'center');
@@ -1402,9 +1407,10 @@ function coinIcon(x, y, r = 10) { ctx.fillStyle = rg(x - 3, y - 3, 1, r, ['#fff3
 function drawHUD(g) {
   const lv = LEVELS[g.li];
   ctx.fillStyle = lg(0, 0, 0, MY, ['#232734', '#181b24']); ctx.fillRect(0, 0, AW, MY); ctx.fillStyle = 'rgba(255,255,255,.06)'; ctx.fillRect(0, MY - 1, AW, 1);
-  const right = AW - 16, bsW = clamp(AW * 0.16, 90, 200), bsX = right - bsW - 50, moneyX = bsX - 190, nameW = moneyX - 30;
+  const right = AW - 16, moneyX = right - 140, bsW = clamp(AW * 0.15, 90, 190), bsX = moneyX - 60 - bsW - 30, nameW = bsX - 50;
   fitText(`${g.li + 1}. ${lv.name}`, 16, 22, nameW, 20, '#fff', 'left', '900'); fitText(lv.sub, 16, 43, nameW, 13, '#8f97a8', 'left', '700');
-  coinIcon(moneyX + 12, 30, 12); fitText(`${g.money} lei`, moneyX + 30, 31, 150, 20, '#ffd84d', 'left', '900');
+  ctx.fillStyle = 'rgba(255,216,77,.1)'; rr(moneyX - 6, 13, 146, 34, 17); ctx.fill();
+  coinIcon(moneyX + 12, 30, 12); fitText(`${g.money} lei`, moneyX + 30, 31, 104, 20, '#ffd84d', 'left', '900');
   bullIcon(bsX - 6, 32, 1.05, g.bs > 60);
   text('Nivel de bullshit', bsX + 16, 21, 12, '#aab1c0', 'left', '800'); bar(bsX + 16, 33, bsW, 11, g.bs / 100, bsColor(g.bs)); text(`${Math.round(g.bs)}%`, bsX + bsW + 22, 38, 13, '#fff', 'left', '900');
 }
@@ -1425,18 +1431,20 @@ function drawUpgradePanel(g, t, top, bottom) {
   button(PX + PW - 46, top + 4, 34, 32, '×', () => selTower = null, { color: '#5b6474', r: 10, size: 20 });
   ctx.fillStyle = 'rgba(0,0,0,.25)'; rr(x, top + 44, 76, 76, 14); ctx.fill();
   ctx.save(); ctx.translate(x + 38, top + 84); ctx.scale(1.3, 1.3); drawTower(t.type, 0, 0, t.ang, 0, g.time, t); ctx.restore();
-  for (let i = 0; i < 3; i++) { const c = i < t.lvl ? '#ffd84d' : i === t.lvl ? (g.money >= upCost(t) ? '#3fe07a' : '#5b606c') : '#5b606c'; ctx.fillStyle = c; ell(x + 96 + i * 18, top + 56, 6, 6); ctx.fill(); }
-  text(`Nivel ${t.lvl} din 3`, x + 150, top + 57, 13, '#ffd84d', 'left', '900');
-  wrap(T.desc, w - 96, 12.5, '700').slice(0, 4).forEach((l, i) => text(l, x + 88, top + 80 + i * 16, 12.5, '#c9cedb', 'left', '700'));
-  let y = top + 148;
+  for (let i = 0; i < 3; i++) { const c = i < t.lvl ? '#ffd84d' : i === t.lvl ? (g.money >= upCost(t) ? '#3fe07a' : '#5b606c') : '#5b606c'; ctx.fillStyle = c; ell(x + 94 + i * 17, top + 54, 6, 6); ctx.fill(); }
+  text(`Nivel ${t.lvl} din 3`, x + 148, top + 55, 13, '#ffd84d', 'left', '900');
+  wrap(T.desc, w - 92, 12.5, '700').slice(0, 4).forEach((l, i) => text(l, x + 86, top + 76 + i * 15, 12.5, '#c9cedb', 'left', '700'));
+  // caseta „la nivelul următor”: înălțime fixă, ca butoanele să nu se miște
+  const by = top + 134, bh = 66;
   if (t.lvl < 3) {
-    ctx.fillStyle = 'rgba(63,224,122,.1)'; const ul = wrap(T.ups[t.lvl - 1], w - 24, 14, '800'); rr(x, y, w, 30 + ul.length * 18, 10); ctx.fill();
-    text('La nivelul următor:', x + 12, y + 14, 12, '#7ef0a0', 'left', '900'); ul.forEach((l, i) => text(l, x + 12, y + 34 + i * 18, 14, '#e6fbe9', 'left', '800'));
-    y += 40 + ul.length * 18;
-    const c = upCost(t); button(x, y, w, 50, `Upgrade · ${c} lei`, () => { if (G.money >= c) { G.money -= c; t.invest += c; t.lvl++; sfx('upgrade'); confetti(t.c * TS + 25, MY + t.r * TS + 25, 14); } else { sfx('error'); say(G, 'Nu ai destui lei pentru upgrade.', 2.5); } }, { color: g.money >= c ? '#2fa865' : '#6b5a3a', size: 18, disabled: false });
-  } else { ctx.fillStyle = 'rgba(255,216,77,.12)'; rr(x, y, w, 50, 12); ctx.fill(); text('Nivel maxim atins', x + w / 2, y + 25, 16, '#ffd84d', 'center', '900'); }
-  y += 62; const sv = Math.floor(t.invest / 2);
-  if (y + 44 < bottom) button(x, y, w, 44, `Vinde · +${sv} lei`, () => { G.money += sv; G.towers = G.towers.filter(q => q !== t); selTower = null; sfx('sell'); puff(t.c * TS + 25, MY + t.r * TS + 25, '#ddd', 8); }, { color: '#b5443b', size: 16 });
+    ctx.fillStyle = 'rgba(63,224,122,.1)'; rr(x, by, w, bh, 10); ctx.fill();
+    text('La nivelul următor:', x + 12, by + 14, 12, '#7ef0a0', 'left', '900');
+    wrap(T.ups[t.lvl - 1], w - 24, 13.5, '800').slice(0, 2).forEach((l, i) => text(l, x + 12, by + 34 + i * 17, 13.5, '#e6fbe9', 'left', '800'));
+  } else { ctx.fillStyle = 'rgba(255,216,77,.1)'; rr(x, by, w, bh, 10); ctx.fill(); text('Nivel maxim atins', x + w / 2, by + bh / 2, 16, '#ffd84d', 'center', '900'); }
+  const yb = by + bh + 12, sv = Math.floor(t.invest / 2), w1 = Math.round(w * 0.56), w2 = w - w1 - 8;
+  if (t.lvl < 3) { const c = upCost(t); button(x, yb, w1, 44, `Upgrade · ${c} lei`, () => { if (G.money >= c) { G.money -= c; t.invest += c; t.lvl++; t.born = G.time; sfx('upgrade'); confetti(t.c * TS + 25, MY + t.r * TS + 25, 14); } else { sfx('error'); say(G, 'Nu ai destui lei pentru upgrade.', 2.5); } }, { color: g.money >= c ? '#2fa865' : '#6b5a3a', size: 15 }); }
+  else button(x, yb, w1, 44, 'Maxim', null, { disabled: true, size: 15 });
+  button(x + w1 + 8, yb, w2, 44, `Vinde +${sv}`, () => { G.money += sv; G.towers = G.towers.filter(q => q !== t); selTower = null; sfx('sell'); puff(t.c * TS + 25, MY + t.r * TS + 25, '#ddd', 8); }, { color: '#b5443b', size: 15 });
 }
 function drawPanel(g) {
   ctx.fillStyle = lg(PX, 0, PX, H, ['#1f2330', '#171a22']); ctx.fillRect(PX, 0, PW, H); ctx.fillStyle = 'rgba(255,255,255,.06)'; ctx.fillRect(PX, 0, 1, H);
@@ -1444,7 +1452,6 @@ function drawPanel(g) {
   if (st) drawUpgradePanel(g, st, 4, topEnd);
   else {
     text('Capcane', PX + 14, 18, 19, '#fff', 'left', '900');
-    if (selShop) button(PX + 176, 4, 92, 26, 'Anulează', () => selShop = null, { color: '#5b6474', size: 14, r: 9 });
     text('ATAC', PX + 14, 44, 11, '#ff9f8a', 'left', '900');
     ATK.forEach((k, i) => trapCard(g, k, PX + 8 + (i % 2) * 134, 52 + Math.floor(i / 2) * 64, 128, 58));
     text('AJUTOR', PX + 14, 252, 11, '#8fd6ff', 'left', '900');
@@ -1457,9 +1464,10 @@ function drawPanel(g) {
   ctx.save(); if (an && an.type === 'bad' && an.t < 0.6) ctx.translate(Math.sin(an.t * 60) * 6 * (1 - an.t / 0.6), 0);
   if (glowA) { ctx.shadowColor = border; ctx.shadowBlur = 25 * glowA; }
   ctx.fillStyle = lg(0, cy, 0, cy + ch, ['#2a211e', '#1b1716']); rr(cx, cy, cw, ch, 14); ctx.fill(); ctx.shadowBlur = 0; ctx.strokeStyle = border; ctx.lineWidth = 2; ctx.stroke();
-  let rot = g.time * 0.6, lsc = 1, lcol = '#d97757';
-  if (an) { if (an.type === 'good') { rot = g.time * 0.6 + Math.min(an.t, 0.8) * 10; lsc = 1 + 0.5 * Math.max(0, Math.sin(Math.min(an.t, 0.8) / 0.8 * Math.PI)); } else if (an.type === 'bad') { lcol = an.t < 2 && Math.floor(an.t * 8) % 2 ? '#ff4d4d' : '#d97757'; rot = Math.sin(an.t * 30) * 0.4 * Math.max(0, 1 - an.t / 2); } else { lsc = 0.85; lcol = '#8a7a74'; rot = 0.35; } }
-  else if (g.req) rot = g.time * 3;
+  const RT = performance.now() / 1000;
+  let rot = RT * 0.6, lsc = 1, lcol = '#d97757';
+  if (an) { if (an.type === 'good') { rot = RT * 0.6 + Math.min(an.t, 0.8) * 10; lsc = 1 + 0.5 * Math.max(0, Math.sin(Math.min(an.t, 0.8) / 0.8 * Math.PI)); } else if (an.type === 'bad') { lcol = an.t < 2 && Math.floor(an.t * 8) % 2 ? '#ff4d4d' : '#d97757'; rot = Math.sin(an.t * 30) * 0.4 * Math.max(0, 1 - an.t / 2); } else { lsc = 0.85; lcol = '#8a7a74'; rot = 0.35; } }
+  else if (g.req) rot = RT * 3;
   drawClaudeLogo(cx + 22, cy + 22, 11 * lsc, lcol, rot);
   text('Claude Code', cx + 40, cy + 22, 17, '#f0d8cc', 'left', '900');
   text(g.req ? 'te așteaptă' : g.state === 'wave' ? 'lucrează' : 'în pauză', cx + cw - 12, cy + 23, 12, g.req ? '#ffb38a' : '#8f857f', 'right', '800');
@@ -1486,7 +1494,7 @@ function drawPanel(g) {
       button(cx + cw - 128, btnY, 116, btnH, 'Refuză', () => answer(G, false), { color: '#c0443b', size: 20 });
     } else {
       const working = g.state === 'wave', n = Math.max(1, Math.floor((termH - 16) / 16));
-      for (let i = 0; i < n; i++) { const w = working ? 30 + Math.abs(Math.sin(i * 1.7 + Math.floor(g.time * 4) * 0.8)) * 150 : 40 + ((i * 37) % 110); ctx.fillStyle = ['#8ff0a4', '#7fb3ff', '#d97757', '#c9a0ff'][i % 4]; ctx.globalAlpha = working ? 0.75 : 0.3; rr(cx + 24 + (i % 3 === 1 ? 14 : 0), termY + 30 + i * 16, Math.min(w, cw - 60), 6, 3); ctx.fill(); }
+      for (let i = 0; i < n; i++) { const w = working ? 30 + Math.abs(Math.sin(i * 1.7 + Math.floor(RT * 4) * 0.8)) * 150 : 40 + ((i * 37) % 110); ctx.fillStyle = ['#8ff0a4', '#7fb3ff', '#d97757', '#c9a0ff'][i % 4]; ctx.globalAlpha = working ? 0.75 : 0.3; rr(cx + 24 + (i % 3 === 1 ? 14 : 0), termY + 30 + i * 16, Math.min(w, cw - 60), 6, 3); ctx.fill(); }
       ctx.globalAlpha = 1;
       wrap('Când Claude cere voie, aprobă comenzile utile și refuză-le pe cele periculoase. Răspunsurile corecte scad bullshit-ul.', cw - 28, 12.5, '700').slice(0, 4).forEach((l, i) => text(l, cx + 14, btnY - 6 + i * 16, 12.5, '#a89a93', 'left', '700'));
     }
@@ -1495,13 +1503,12 @@ function drawPanel(g) {
   const lv = LEVELS[g.li], by = H - 116;
   if (g.state === 'build') button(PX + 10, by, 260, 50, `Pornește runda ${g.wave + 1} din ${lv.waves}`, () => { startWave(G); selTower = null; selShop = null; }, { color: '#2fa865', size: 18, icon: ICON.play });
   else button(PX + 10, by, 260, 50, `Runda ${g.wave + 1} din ${lv.waves} · ${g.queue.length + g.pigs.length} porci`, null, { disabled: true, size: 16 });
-  const bw = 38, gap = (260 - 6 * bw) / 5, yb = H - 54, X = i => PX + 10 + i * (bw + gap);
+  const bw = 46, gap = (260 - 5 * bw) / 4, yb = H - 54, X = i => PX + 10 + i * (bw + gap);
   button(X(0), yb, bw, 42, '', () => { paused = true; selShop = null; }, { color: '#3a4050', r: 10, icon: ICON.pause });
-  button(X(1), yb, bw, 42, g.speed === 2 ? '2x' : '1x', () => G.speed = G.speed === 2 ? 1 : 2, { color: g.speed === 2 ? '#4f7cff' : '#3a4050', size: 15, r: 10 });
+  button(X(1), yb, bw, 42, '', () => { restartAsk = true; }, { color: '#3a4050', r: 10, icon: ICON.restart });
   button(X(2), yb, bw, 42, '', toggleMute, { color: AU.muted ? '#7a3b3b' : '#3a4050', r: 10, icon: ICON.sound });
   button(X(3), yb, bw, 42, '', () => openTut(), { color: '#3a4050', r: 10, icon: ICON.help });
   button(X(4), yb, bw, 42, '', toggleFS, { color: '#3a4050', r: 10, icon: ICON.fs });
-  button(X(5), yb, bw, 42, '', () => { restartAsk = true; }, { color: '#3a4050', r: 10, icon: ICON.restart });
 }
 
 // =================================================================== TUTORIAL (cu harta reală a primului nivel)
@@ -1516,8 +1523,9 @@ function openTut(after) { tut = { i: 0, t: 0, after }; TG = null; }
 function closeTut() { const a = tut && tut.after; tut = null; TG = null; if (a) a(); }
 function tutGame(i) {
   if (!TG || TG.slide !== i) {
-    TG = newGame(0, { demo: true }); TG.slide = i; TG.demoT = 0.3;
-    if (i === 1) [[3, 2, 'stapler'], [5, 3, 'bubbles'], [7, 2, 'printer'], [1, 3, 'stapler'], [3, 4, 'stapler']].forEach(([c, r, t]) => { if (canPlace(TG, c, r)) TG.towers.push(newTower(TG, t, c, r)); });
+    TG = newGame(0, { demo: true }); TG.slide = i; startWave(TG); TG.queue.forEach((q, k) => q.d = k ? 0.8 : 0.05); TG.qT = 0.05;
+    const d = LD[0], nearDev = (c, r) => d.decor.some(o => o.type === 'dev' && c >= o.c - 1 && c <= o.c + 2 && r >= o.r - 2 && r <= o.r + 1);
+    if (i === 1) { const spots = []; for (let c = 1; c < 12; c++) for (let r = 1; r < 5; r++) if (canPlace(TG, c, r) && !nearDev(c, r) && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => inb(c + a, r + b) && d.pathT[r + b][c + a])) spots.push([c, r]); ['stapler', 'bubbles', 'printer', 'stapler'].forEach((t, k) => { const sp = spots[Math.floor(k * spots.length / 4)]; if (sp) TG.towers.push(newTower(TG, t, sp[0], sp[1])); }); TG.tutRing = TG.towers[0]; }
   }
   return TG;
 }
@@ -1534,7 +1542,7 @@ function drawTut(dt) {
   if (tut.i <= 1) {
     const g = tutGame(tut.i); g.state === 'wave' || (g.demoT -= 0); updateGame(g, dt * 0.55); if (tut.i === 0) g.towers = [];
     const s2 = iw / 700; worldLayer(g, ix, iy, iw, ih, s2, ix, iy, tut.i === 0);
-    if (tut.i === 1) { const tx = ix + (3 * TS + 25) * s2, ty = iy + (2 * TS + 25) * s2; ctx.strokeStyle = 'rgba(160,215,255,.9)'; ctx.lineWidth = 2; ctx.fillStyle = 'rgba(120,200,255,.15)'; ell(tx, ty, TOWERS.stapler.range * TS * s2, TOWERS.stapler.range * TS * s2); ctx.fill(); ctx.stroke(); }
+    if (tut.i === 1 && g.tutRing) { const tx = ix + (g.tutRing.c * TS + 25) * s2, ty = iy + (g.tutRing.r * TS + 25) * s2; ctx.strokeStyle = 'rgba(160,215,255,.9)'; ctx.lineWidth = 2; ctx.fillStyle = 'rgba(120,200,255,.15)'; ell(tx, ty, TOWERS.stapler.range * TS * s2, TOWERS.stapler.range * TS * s2); ctx.fill(); ctx.stroke(); }
   } else if (tut.i === 2) {
     ctx.fillStyle = '#15171e'; ctx.fillRect(ix, iy, iw, ih);
     const bx = ix + 40, by = iy + 24; ctx.fillStyle = '#211b19'; rr(bx, by, 330, 212, 14); ctx.fill(); ctx.strokeStyle = '#d97757'; ctx.lineWidth = 2; ctx.stroke();
@@ -1559,18 +1567,18 @@ function drawTut(dt) {
     text('Răspuns corect, rundă terminată  →  ↓', ix + 300, iy + 236, 16, '#a6f0bc', 'left', '800');
   }
   ctx.restore();
-  textS(s.t, w / 2, 352, 32, '#fff');
-  wrap(s.d, w - 120, 18, '700').forEach((l, i) => text(l, w / 2, 394 + i * 26, 18, '#c9cedb', 'center', '700'));
-  for (let i = 0; i < TUT.length; i++) { ctx.fillStyle = i === tut.i ? '#ffd84d' : 'rgba(255,255,255,.25)'; ell(w / 2 - 30 + i * 20, h - 40, 5, 5); ctx.fill(); }
-  if (tut.i > 0) button(30, h - 64, 150, 48, 'Înapoi', () => { tut.i--; tut.t = 0; }, { color: '#5b6474' });
+  textS(s.t, w / 2, 350, 30, '#fff');
+  wrap(s.d, w - 120, 17, '700').slice(0, 3).forEach((l, i) => text(l, w / 2, 388 + i * 24, 17, '#c9cedb', 'center', '700'));
+  for (let i = 0; i < TUT.length; i++) { ctx.fillStyle = i === tut.i ? '#ffd84d' : 'rgba(255,255,255,.25)'; ell(w / 2 - 30 + i * 20, h - 86, 5, 5); ctx.fill(); }
+  if (tut.i > 0) button(30, h - 64, 160, 48, 'Înapoi', () => { tut.i--; tut.t = 0; }, { color: '#5b6474' });
+  button(w / 2 - 80, h - 64, 160, 48, 'Sari peste', closeTut, { color: '#4a5060', size: 17 });
   const last = tut.i === TUT.length - 1;
-  button(w - 210, h - 64, 180, 48, last ? 'Hai la joc!' : 'Înainte', () => { if (last) closeTut(); else { tut.i++; tut.t = 0; } }, { color: '#2fa865', size: 19 });
-  button(w - 52, 14, 36, 36, '×', closeTut, { color: '#5b6474', r: 10, size: 20 });
+  button(w - 190, h - 64, 160, 48, last ? 'Hai la joc!' : 'Înainte', () => { if (last) closeTut(); else { tut.i++; tut.t = 0; } }, { color: '#2fa865', size: 19 });
   ctx.restore();
 }
 // pop-up la începutul nivelului cu capcanele deblocate
 function drawUnlock() {
-  ctx.fillStyle = 'rgba(8,10,14,.8)'; ctx.fillRect(0, 0, W, H); region(0, 0, W, H, () => { });
+  ctx.fillStyle = 'rgba(8,10,14,.8)'; ctx.fillRect(0, 0, W, H); region(0, 0, W, H, () => { unlockPop = null; });
   const list = unlockPop, w = Math.min(640, W - 40), rowH = 92, h = 130 + list.length * rowH, x = (W - w) / 2, y = (H - h) / 2;
   ctx.fillStyle = lg(0, y, 0, y + h, ['#2c3140', '#1d212b']); rr(x, y, w, h, 22); ctx.fill(); ctx.strokeStyle = '#7ef0a0'; ctx.lineWidth = 2; ctx.stroke();
   textS(list.length > 1 ? 'Capcane noi deblocate!' : 'Capcană nouă deblocată!', W / 2, y + 40, 28, '#7ef0a0');
@@ -1639,6 +1647,7 @@ function drawLevels() {
     ctx.fillStyle = hv ? '#323849' : '#262b38'; rr(x, yy, cw, ch, 18); ctx.fill(); ctx.strokeStyle = hv ? '#ffd84d' : 'rgba(255,255,255,.1)'; ctx.lineWidth = 2; ctx.stroke();
     const iw = cw - 20, ih = iw * 0.6 - 10;
     ctx.save(); rr(x + 10, yy + 10, iw, ih, 12); ctx.clip(); ctx.drawImage(getThumb(i), x + 10, yy + 10, iw, iw * 0.6);
+    ctx.save(); ctx.translate(x + 10, yy + 10); ctx.scale(iw / MW, iw / MW); ctx.translate(0, -MY); drawProgrammer({ li: i, time: performance.now() / 1000, face: { type: 'normal', t: 0 }, state: 'wave', bs: 0, demo: true }); ctx.restore();
     if (locked) { ctx.fillStyle = 'rgba(10,12,18,.7)'; ctx.fillRect(x + 10, yy + 10, iw, ih); } ctx.restore();
     if (locked) { const lx = x + cw / 2, ly = yy + 10 + ih / 2; ctx.fillStyle = '#9aa1b0'; rr(lx - 16, ly - 6, 32, 26, 5); ctx.fill(); ctx.strokeStyle = '#9aa1b0'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(lx, ly - 6, 11, Math.PI, 0); ctx.stroke(); }
     fitText(`${i + 1}. ${lv.name}`, x + 16, yy + ih + 34, cw * 0.58, 20, locked ? '#7d8494' : '#fff', 'left', '900');
@@ -1712,7 +1721,7 @@ const portrait = () => innerHeight > innerWidth * 1.05 && matchMedia('(pointer:c
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (scr === 'menu' || scr === 'levels' || scr === 'splash') { updateGame(DG, dt); updateFx(dt); }
-  else if (scr === 'play') { const run = !overlayOpen(); if (run) for (let i = 0; i < G.speed && scr === 'play'; i++) updateGame(G, dt); updateFx(run ? dt * G.speed : 0); }
+  else if (scr === 'play') { const run = !overlayOpen(); if (run) updateGame(G, dt); else if (G.canim) { G.canim.t += dt; if (G.canim.t > 4) G.canim = null; } updateFx(dt); }
   else updateFx(dt);
   ctx.setTransform(K, 0, 0, K, 0, 0); BTN = [];
   ctx.fillStyle = '#0d0f14'; ctx.fillRect(0, 0, W, H);
