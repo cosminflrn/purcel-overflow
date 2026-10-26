@@ -29,25 +29,27 @@ canvas{position:fixed;left:0;top:0;display:block;touch-action:none}
 // =====================================================================
 //  PURCEL OVERFLOW — tower defense cu porci, un programator și Claude
 // =====================================================================
-const VERSION = 'v8.0';
+const VERSION = 'v9.0';
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 const TS = 50, COLS = 20, ROWS = 12, MY = 60, MW = 1000, MH = 600, PW = 280;
 const FB = '"Nunito","Segoe UI",system-ui,sans-serif', FM = 'Consolas,"Courier New",monospace';
-let W = 1280, H = 720, PX = 1000, AW = 1000, AH = 660, K = 1, VIEW = { s: 1, ox: 0, oy: MY }, CV = { l: 0, t: 0, w: 1, h: 1 };
+let SAL = 0, SAR = 0, W = 1280, H = 720, PX = 1000, AW = 1000, AH = 660, K = 1, VIEW = { s: 1, ox: 0, oy: MY }, CV = { l: 0, t: 0, w: 1, h: 1 };
+const canFS = () => !standalone;
 const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 function resize() {
   // pe telefoanele cu colțuri rotunjite / notch lăsăm o margine, ca butoanele să fie mereu ușor de atins
   const cs = getComputedStyle(document.documentElement), inset = k => Math.max(0, parseFloat(cs.getPropertyValue(k)) || 0);
   const coarse = matchMedia('(pointer:coarse)').matches, full = !!(document.fullscreenElement || document.webkitFullscreenElement) || standalone, minP = coarse && full ? 16 : 0;
-  const px = Math.max(inset('--sal'), inset('--sar'), minP), py = 0;
-  const iw = innerWidth - 2 * px, ih = innerHeight - 2 * py, a = iw / ih, dpr = Math.min(2.5, window.devicePixelRatio || 1);
-  CV = { l: px, t: py, w: iw, h: ih }; cv.style.left = px + 'px'; cv.style.top = py + 'px';
+  const sl = Math.max(inset('--sal'), minP), sr = Math.max(inset('--sar'), minP);
+  const iw = innerWidth, ih = innerHeight, a = iw / ih, dpr = Math.min(2.5, window.devicePixelRatio || 1);
+  CV = { l: 0, t: 0, w: iw, h: ih }; cv.style.left = '0px'; cv.style.top = '0px';
   if (a >= 1000 / 720) { H = 720; W = Math.round(720 * a); } else { W = 1000; H = Math.round(1000 / a); }
   cv.style.width = iw + 'px'; cv.style.height = ih + 'px';
   cv.width = Math.round(iw * dpr); cv.height = Math.round(ih * dpr); K = iw * dpr / W;
-  PX = W - PW; AW = PX; AH = H - MY;
-  const s = clamp(Math.min(AW / MW, AH / MH), 0.5, 1.45); VIEW = { s, ox: (AW - MW * s) / 2, oy: MY + (AH - MH * s) / 2 };
+  SAL = sl * W / iw; SAR = sr * W / iw; // margini sigure în unități logice
+  PX = W - PW - SAR; AW = PX; AH = H - MY;
+  const s = clamp(Math.min((AW - SAL) / MW, AH / MH), 0.5, 1.45); VIEW = { s, ox: SAL + (AW - SAL - MW * s) / 2, oy: MY + (AH - MH * s) / 2 };
 }
 addEventListener('resize', resize); resize();
 document.addEventListener('visibilitychange', () => { if (document.hidden && scr === 'play' && G && !paused && !tut && !unlockPop && !restartAsk) { paused = true; autoPause = true; selShop = null; } });
@@ -311,6 +313,7 @@ function audioInit() {
   const comp = A.createDynamicsCompressor(); comp.threshold.value = -10; comp.ratio.value = 4; comp.connect(A.destination);
   AU.master = A.createGain(); AU.master.gain.value = masterLevel(); AU.master.connect(comp);
   AU.mg = A.createGain(); AU.mg.gain.value = 0.5; AU.mg.connect(AU.master);
+  AU.sgn = A.createGain(); AU.sgn.connect(AU.mg);
   AU.sg = A.createGain(); AU.sg.gain.value = 1.0; AU.sg.connect(AU.master);
   const b = A.createBuffer(1, A.sampleRate, A.sampleRate), dd = b.getChannelData(0);
   for (let i = 0; i < dd.length; i++) dd[i] = Math.random() * 2 - 1;
@@ -431,18 +434,20 @@ function pad(type, f, t, dur, vol, cut) {
   const A = AU.ctx, o = A.createOscillator(); o.type = type; o.frequency.value = f; o.detune.value = (Math.random() - 0.5) * 14;
   const fl = A.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = cut; const g = A.createGain();
   g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.4); g.gain.linearRampToValueAtTime(vol * 0.7, t + dur * 0.7); g.gain.linearRampToValueAtTime(0.0001, t + dur);
-  o.connect(fl); fl.connect(g); g.connect(AU.mg); o.start(t); o.stop(t + dur + 0.05);
+  o.connect(fl); fl.connect(g); g.connect(AU.sgn); o.start(t); o.stop(t + dur + 0.05);
 }
-function vibes(f, t, dur, vol) { osc('sine', f, t, dur, vol, AU.mg); osc('sine', f * 4.01, t, dur * 0.4, vol * 0.25, AU.mg); osc('sine', f * 1.003, t + 0.01, dur, vol * 0.6, AU.mg); }
+function vibes(f, t, dur, vol) { osc('sine', f, t, dur, vol, AU.sgn); osc('sine', f * 4.01, t, dur * 0.4, vol * 0.25, AU.sgn); osc('sine', f * 1.003, t + 0.01, dur, vol * 0.6, AU.sgn); }
 function sched() {
   const A = AU.ctx; if (!A || A.state !== 'running') return;
   const hush = scr === 'play' && paused && !autoPause; if (AU.hush !== hush) { AU.hush = hush; AU.mg.gain.setTargetAtTime(hush ? 0 : 0.5, A.currentTime, 0.04); }
   if (hush) { AU.next = A.currentTime + 0.05; return; }
   if (AU.next < A.currentTime) AU.next = A.currentTime + 0.05;
+  if (AU.songKey !== wantSong) { // schimbare imediată: piesa veche se stinge rapid, cea nouă pornește acum
+    const old = AU.sgn; old.gain.setTargetAtTime(0, A.currentTime, 0.05); setTimeout(() => old.disconnect(), 1500);
+    AU.sgn = A.createGain(); AU.sgn.connect(AU.mg); AU.songKey = wantSong; AU.step = 0; AU.next = A.currentTime + 0.03;
+  }
   while (AU.next < A.currentTime + (document.hidden ? 1.5 : 0.3)) { // în tab ascuns timerele rulează rar, așa că programăm mai mult în avans
-    const S0 = SONGS[AU.songKey] || SONGS.menu, st0 = S0.steps || 16;
-    if (AU.step % st0 === 0 && AU.songKey !== wantSong) { AU.songKey = wantSong; AU.step = 0; }
-    const S = SONGS[AU.songKey] || SONGS.menu, N = S.steps || 16, spb = 60 / S.bpm / 4, s = AU.step, bar = Math.floor(s / N) % 4, i = s % N, mg = AU.mg;
+    const S = SONGS[AU.songKey] || SONGS.menu, N = S.steps || 16, spb = 60 / S.bpm / 4, s = AU.step, bar = Math.floor(s / N) % 4, i = s % N, mg = AU.sgn;
     const t = AU.next + (i % 2 ? spb * S.sw * 2 : 0), ch = S.ch[bar];
     const intense = scr === 'play' && G && G.state === 'wave';
     if (i === 0 && S.pad) ch.forEach(m => pad(S.pad, mtof(m), t, spb * N, S.pv, S.cut));
@@ -754,7 +759,7 @@ let autoPause = false, scr = 'splash', G = null, DG = null, paused = false, selS
 // între sesiuni se păstrează doar câte hărți sunt deblocate (plus volumul); restul e doar pentru sesiunea curentă
 for (const k of ['po_done4', 'po_seen4', 'po_hard4', 'po_hard', 'po_bag_good', 'po_bag_bad']) try { localStorage.removeItem(k); } catch (e) { }
 const progress = { unlocked: store.get('po_unlocked4', 1), seen: [] };
-let hardMode = true;
+const hardMode = true; // un singur mod: cu timp limitat între runde
 
 function newGame(li, o = {}) {
   return { li, demo: !!o.demo, sim: !!o.sim, money: LEVELS[li].money, bs: 0, wave: 0, state: 'build', pigs: [], towers: [], projs: [],
@@ -1435,7 +1440,7 @@ function drawShopInfo(g) {
   ctx.fillStyle = lg(0, y, 0, y + h, ['#2f3a52', '#1f2638']); rr(x, y, w, h, 14); ctx.fill(); ctx.strokeStyle = '#9cc7ff'; ctx.lineWidth = 2; ctx.stroke();
   fitText(T.name, x + 14, y + 22, w - 28, 17, '#fff', 'left', '900');
   lines.forEach((l, k) => text(l, x + 14, y + 48 + k * 19, 14, '#d9dee8', 'left', '700'));
-  fitText(`Preț ${lei(T.cost)} · ${T.cat === 'help' ? 'ajutor' : 'atac'} · apasă pe podea`, x + 14, y + h - 18, w - 28, 13, '#ffd84d', 'left', '800');
+  fitText(`Preț ${lei(T.cost)} · ${T.cat === 'help' ? 'capcană de ajutor' : 'capcană de atac'} · apasă pe podea`, x + 14, y + h - 18, w - 28, 13, '#ffd84d', 'left', '800');
 }
 function drawToast(g) {
   if (g.msgT <= 0) return; const a = Math.min(1, g.msgT * 3);
@@ -1473,8 +1478,8 @@ function drawHUD(g) {
   const lv = LEVELS[g.li];
   ctx.fillStyle = lg(0, 0, 0, MY, ['#232734', '#181b24']); ctx.fillRect(0, 0, AW, MY); ctx.fillStyle = 'rgba(255,255,255,.06)'; ctx.fillRect(0, MY - 1, AW, 1);
   ctx.font = `900 20px ${FB}`; const mt = lei(g.money), mw = ctx.measureText(mt).width, boxW = mw + 52, right = AW - 16, boxX = right - boxW;
-  const bsW = clamp(AW * 0.15, 90, 190), bsX = boxX - 56 - bsW - 30, nameW = bsX - 50;
-  fitText(`${g.li + 1}. ${lv.name}`, 16, 22, nameW, 20, '#fff', 'left', '900'); fitText(g.hard ? `Mod greu · ${lv.sub}` : lv.sub, 16, 43, nameW, 13, g.hard ? '#ff8a5c' : '#8f97a8', 'left', g.hard ? '800' : '700');
+  const bsW = clamp(AW * 0.15, 90, 190), bsX = boxX - 56 - bsW - 30, nameW = bsX - 50 - SAL;
+  fitText(`${g.li + 1}. ${lv.name}`, SAL + 16, 22, nameW, 20, '#fff', 'left', '900'); fitText(lv.sub, SAL + 16, 43, nameW, 13, '#8f97a8', 'left', '700');
   ctx.fillStyle = 'rgba(255,216,77,.12)'; rr(boxX, 13, boxW, 34, 17); ctx.fill();
   coinIcon(boxX + 18, 30, 12); text(mt, boxX + 36, 31, 20, '#ffd84d', 'left', '900');
   bullIcon(bsX - 6, 32, 1.05, g.bs > 60);
@@ -1513,14 +1518,14 @@ function drawUpgradePanel(g, t, top, bottom) {
   button(x + w1 + 8, yb, w2, 44, `Vinde +${sv}`, () => { G.money += sv; G.towers = G.towers.filter(q => q !== t); selTower = null; sfx('sell'); puff(t.c * TS + 25, MY + t.r * TS + 25, '#ddd', 8); }, { color: '#b5443b', size: 15 });
 }
 function drawPanel(g) {
-  ctx.fillStyle = lg(PX, 0, PX, H, ['#1f2330', '#171a22']); ctx.fillRect(PX, 0, PW, H); ctx.fillStyle = 'rgba(255,255,255,.06)'; ctx.fillRect(PX, 0, 1, H);
+  ctx.fillStyle = lg(PX, 0, PX, H, ['#1f2330', '#171a22']); ctx.fillRect(PX, 0, W - PX, H); ctx.fillStyle = 'rgba(255,255,255,.06)'; ctx.fillRect(PX, 0, 1, H);
   const st = g.towers.find(t => t.id === selTower), topEnd = 338;
   if (st) drawUpgradePanel(g, st, 4, topEnd);
   else {
     text('Capcane', PX + 14, 18, 19, '#fff', 'left', '900');
-    text('ATAC', PX + 14, 44, 11, '#ff9f8a', 'left', '900'); text('lovesc și doboară porcii', PX + 266, 44, 11, '#8f97a8', 'right', '700');
+    text('DE ATAC', PX + 14, 44, 11, '#ff9f8a', 'left', '900'); text('lovesc și doboară porcii', PX + 266, 44, 11, '#8f97a8', 'right', '700');
     ATK.forEach((k, i) => trapCard(g, k, PX + 8 + (i % 2) * 134, 52 + Math.floor(i / 2) * 64, 128, 58));
-    text('AJUTOR', PX + 14, 252, 11, '#8fd6ff', 'left', '900'); text('încetinesc porcii, dau boost', PX + 266, 252, 11, '#8f97a8', 'right', '700');
+    text('DE AJUTOR', PX + 14, 252, 11, '#8fd6ff', 'left', '900'); text('încetinesc porcii, ajută capcanele', PX + 266, 252, 11, '#8f97a8', 'right', '700');
     HELP.forEach((k, i) => trapCard(g, k, PX + 8 + i * 134, 260, 128, 58));
   }
   // Claude
@@ -1576,12 +1581,12 @@ function drawPanel(g) {
     else button(PX + 10, by, 260, 50, `Pornește runda ${g.wave + 1} din ${lv.waves}`, go, { color: '#2fa865', size: 18, icon: ICON.play });
   }
   else button(PX + 10, by, 260, 50, `Runda ${g.wave + 1} din ${lv.waves} · ${nr(g.queue.length + g.pigs.length, 'porc', 'porci')}`, null, { disabled: true, size: 16 });
-  const bw = 46, gap = (260 - 5 * bw) / 4, yb = H - 54, X = i => PX + 10 + i * (bw + gap);
+  const nb = canFS() ? 5 : 4, bw = 46, gap = (260 - nb * bw) / (nb - 1), yb = H - 54, X = i => PX + 10 + i * (bw + gap);
   button(X(0), yb, bw, 42, '', () => { paused = true; autoPause = false; selShop = null; }, { color: '#3a4050', r: 10, icon: ICON.pause });
   button(X(1), yb, bw, 42, '', () => { restartAsk = true; }, { color: '#3a4050', r: 10, icon: ICON.restart });
   button(X(2), yb, bw, 42, '', toggleMute, { color: AU.muted ? '#7a3b3b' : '#3a4050', r: 10, icon: ICON.sound });
   button(X(3), yb, bw, 42, '', () => openTut(), { color: '#3a4050', r: 10, icon: ICON.help });
-  button(X(4), yb, bw, 42, '', toggleFS, { color: '#3a4050', r: 10, icon: ICON.fs });
+  if (canFS()) button(X(4), yb, bw, 42, '', toggleFS, { color: '#3a4050', r: 10, icon: ICON.fs });
 }
 
 // =================================================================== TUTORIAL (cu harta reală a primului nivel)
@@ -1662,7 +1667,7 @@ function drawUnlock() {
     const T = TOWERS[k], ry = y + 70 + i * rowH;
     ctx.fillStyle = 'rgba(0,0,0,.25)'; rr(x + 20, ry, 76, 76, 14); ctx.fill();
     ctx.save(); ctx.translate(x + 58, ry + 42); ctx.scale(1.3, 1.3); drawTower(k, 0, 0, -0.6, 0, performance.now() / 1000); ctx.restore();
-    fitText(`${T.name} · ${T.cat === 'help' ? 'ajutor' : 'atac'} · ${lei(T.cost)}`, x + 112, ry + 14, w - 132, 17, '#fff', 'left', '900');
+    fitText(`${T.name} · ${T.cat === 'help' ? 'de ajutor' : 'de atac'} · ${lei(T.cost)}`, x + 112, ry + 14, w - 132, 17, '#fff', 'left', '900');
     wrap(T.desc, w - 132, 14, '700').slice(0, 3).forEach((l, j) => text(l, x + 112, ry + 38 + j * 18, 14, '#c9cedb', 'left', '700'));
   });
   button(W / 2 - 100, y + h - 58, 200, 46, 'Am înțeles', () => { unlockPop = null; }, { color: '#2fa865', size: 19 });
@@ -1738,20 +1743,16 @@ function drawMenu() {
   button(W / 2 - 170, top + 296, 340, 72, 'Joacă', goLevels, { color: '#2fa865', size: 32, r: 18, icon: ICON.play });
   button(W / 2 - 170, top + 386, 340, 52, 'Cum se joacă', () => openTut(), { color: '#4f7cff', size: 19, icon: ICON.help });
   ctx.fillStyle = 'rgba(0,0,0,.35)'; rr(W / 2 - 170, top + 458, 340, 62, 16); ctx.fill();
-  soundRow(W / 2 - 154, top + 489, 246);
-  button(W / 2 + 108, top + 467, 46, 44, '', toggleFS, { color: '#4a5060', r: 12, icon: ICON.fs });
-  text(VERSION, W - 16, H - 36, 13, 'rgba(255,255,255,.5)', 'right', '900');
-  text('© Cosmin Florian ' + new Date().getFullYear(), W - 16, H - 16, 13, 'rgba(255,255,255,.5)', 'right', '800');
+  if (canFS()) { soundRow(W / 2 - 154, top + 489, 246); button(W / 2 + 108, top + 467, 46, 44, '', toggleFS, { color: '#4a5060', r: 12, icon: ICON.fs }); }
+  else soundRow(W / 2 - 154, top + 489, 308);
+  text(VERSION, W - SAR - 16, H - 36, 13, 'rgba(255,255,255,.5)', 'right', '900');
+  text('© Cosmin Florian ' + new Date().getFullYear(), W - SAR - 16, H - 16, 13, 'rgba(255,255,255,.5)', 'right', '800');
 }
 function drawLevels() {
   bgFull(); ctx.fillStyle = 'rgba(12,14,20,.8)'; ctx.fillRect(0, 0, W, H);
-  textS('Alege nivelul', W / 2, 46, 40, '#fff');
-  const mx = W - 24 - 236; ctx.fillStyle = 'rgba(0,0,0,.4)'; rr(mx - 4, 20, 244, 52, 14); ctx.fill();
-  button(mx, 24, 116, 44, 'Normal', () => { hardMode = false; sfx('click'); }, { color: hardMode ? '#3a4050' : '#2fa865', size: 16 });
-  button(mx + 120, 24, 116, 44, 'Greu', () => { hardMode = true; sfx('click'); }, { color: hardMode ? '#d9480f' : '#3a4050', size: 16 });
-  fitText(hardMode ? 'Mod greu: ai timp limitat între runde, porcii sunt mai rezistenți și Claude nu mai așteaptă.' : 'Mod normal: fără cronometru, pornești runda când ești gata.', W / 2, 84, W - 340, 14, hardMode ? '#ffb38a' : '#9aa2b3', 'center', '800');
-  const gap = 20, cw = Math.min(380, (W - 80 - gap * 2) / 3, ((H - 130 - gap) / 2 - 76) / 0.6), ch = cw * 0.6 + 76;
-  const tw = 3 * cw + 2 * gap, x0 = (W - tw) / 2, y0 = 104 + Math.max(0, (H - 114 - (2 * ch + gap)) / 2);
+  textS('Alege nivelul', W / 2, 50, 44, '#fff');
+  const gap = 20, cw = Math.min(380, (W - 80 - SAL - SAR - gap * 2) / 3, ((H - 110 - gap) / 2 - 76) / 0.6), ch = cw * 0.6 + 76;
+  const tw = 3 * cw + 2 * gap, x0 = (W - tw) / 2, y0 = 90 + Math.max(0, (H - 100 - (2 * ch + gap)) / 2);
   for (let i = 0; i < NL; i++) {
     const lv = LEVELS[i], row = Math.floor(i / 3), col = i % 3, x = x0 + col * (cw + gap), y = y0 + row * (ch + gap);
     const locked = i >= progress.unlocked, hv = !locked && hov(x, y, cw, ch), yy = y - (hv ? 3 : 0);
@@ -1768,7 +1769,7 @@ function drawLevels() {
     if (i < progress.unlocked - 1) { ctx.fillStyle = '#2fa865'; rr(x + cw - 86, yy + 18, 66, 26, 13); ctx.fill(); text('✓ Gata', x + cw - 53, yy + 31, 13, '#fff', 'center', '900'); }
     if (!locked) region(x, y, cw, ch, () => { sfx('click'); startLevel(i); });
   }
-  button(24, 24, 120, 44, '← Meniu', goMenu, { color: '#5b6474', size: 17 });
+  button(SAL + 24, 24, 120, 44, '← Meniu', goMenu, { color: '#5b6474', size: 17 });
 }
 function drawSteak(cx, cy, t) {
   ctx.fillStyle = 'rgba(0,0,0,.35)'; ell(cx + 8, cy + 30, 210, 80); ctx.fill();
@@ -1889,7 +1890,7 @@ function simulate(li, skill = 0.85, strat = 'smart') {
   FX = [];
   return { li, result: g.result || 'timeout', wave: g.wave, bs: Math.round(g.bs), money: g.money, towers: g.towers.length };
 }
-window.__po = { get G() { return G; }, get scr() { return scr; }, set scr(v) { scr = v; }, startLevel, startWave, LD, endGame, simulate, openTut, goMenu, closeTut, setDiff(a, b) { DIFF_L = a; if (b) DIFF_W = b; }, get tut() { return tut; }, set paused(v) { paused = v; }, clearPop() { unlockPop = null; }, set selTower(v) { selTower = v; }, draw(fn) { fn({ ctx, drawPig, drawGlutton, drawProgrammer, spawnPig, PIGS }); }, set hard(v) { hardMode = v; } };
+window.__po = { hardInfo: () => hardMode, get G() { return G; }, get scr() { return scr; }, set scr(v) { scr = v; }, startLevel, startWave, LD, endGame, simulate, openTut, goMenu, closeTut, setDiff(a, b) { DIFF_L = a; if (b) DIFF_W = b; }, get tut() { return tut; }, set paused(v) { paused = v; }, clearPop() { unlockPop = null; }, set selTower(v) { selTower = v; }, draw(fn) { fn({ ctx, drawPig, drawGlutton, drawProgrammer, spawnPig, PIGS }); } };
 </script>
 </body>
 </html>
