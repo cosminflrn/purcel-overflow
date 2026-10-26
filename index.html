@@ -1892,10 +1892,12 @@ requestAnimationFrame(frame);
 // =================================================================== SIMULARE (pentru balansare)
 function bestSpot(g, k) {
   const d = LD[g.li], R = TOWERS[k].range * TS; let best = null, bs = -1;
+  const cov = d.paths.map((pts, pi) => { let n = 0; for (const t of g.towers) { if (TOWERS[t.type].cat === 'help') continue; const tx = t.c * TS + 25, ty = MY + t.r * TS + 25, tr = TOWERS[t.type].range * TS; for (let dd = 0; dd < d.lens[pi]; dd += 25) { const q = posAt(g.li, pi, dd); if (Math.hypot(q.x - tx, q.y - ty) <= tr) n += t.lvl; } } return n / 6; });
   for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
     if (!canPlace(g, c, r)) continue; const cx = c * TS + 25, cy = MY + r * TS + 25; let s = 0;
     if (k === 'coffee') { for (const t of g.towers) if (t.type !== 'coffee' && t.type !== 'bubbles' && Math.hypot(t.c * TS + 25 - cx, MY + t.r * TS + 25 - cy) <= R + 1) s += t.lvl * 2; }
-    else for (let r2 = 0; r2 < ROWS; r2++) for (let c2 = 0; c2 < COLS; c2++) if (d.pathT[r2][c2] && Math.hypot(c2 * TS + 25 - cx, MY + r2 * TS + 25 - cy) <= R) s += 1;
+    else { // acoperire pe fiecare traseu, cu prioritate pentru traseele încă neacoperite (ca un jucător atent)
+      d.paths.forEach((pts, pi) => { let n = 0; for (let dd = 0; dd < d.lens[pi]; dd += 25) { const q = posAt(g.li, pi, dd); if (q.y >= MY && Math.hypot(q.x - cx, q.y - cy) <= R) n++; } s += n / (1 + 0.6 * (cov[pi] || 0)); }); }
     if (k === 'vacuum' && s === 0) continue;
     s += Math.random() * 0.5; if (s > bs) { bs = s; best = [c, r]; }
   }
