@@ -29,12 +29,12 @@ canvas{position:fixed;left:0;top:0;display:block;touch-action:none}
 // =====================================================================
 //  PURCEL OVERFLOW — tower defense cu porci, un programator și Claude
 // =====================================================================
-const VERSION = 'v10.2';
+const VERSION = 'v11.0';
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 const TS = 50, COLS = 20, ROWS = 12, MY = 60, MW = 1000, MH = 600, PW = 280;
 const FB = '"Nunito","Segoe UI",system-ui,sans-serif', FM = 'Consolas,"Courier New",monospace';
 let SAL = 0, SAR = 0, W = 1280, H = 720, PX = 1000, AW = 1000, AH = 660, K = 1, VIEW = { s: 1, ox: 0, oy: MY }, CV = { l: 0, t: 0, w: 1, h: 1 };
-const canFS = () => !standalone;
+const canFS = () => true;
 const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 function resize() {
@@ -95,8 +95,8 @@ const TOWERS = {
     desc: 'Rază mică, trage foarte repede într-un singur porc. Ieftin și bun aproape de hol.', ups: ['Capse mai grele: +60% daune.', 'Dublă capsare: trage în doi porci deodată.'] },
   printer: { cat: 'atk', name: 'Imprimantă', lvl: 1, cost: 170, range: 4.2, rate: 1.6, dmg: 24, splash: 1.0,
     desc: 'Rază foarte mare. Aruncă topuri de hârtie care lovesc tot grupul unde aterizează.', ups: ['Toner extra: +60% daune și rază mai mare.', 'Format A3: explozie mult mai mare.'] },
-  fan: { cat: 'atk', name: 'Ventilator', lvl: 2, cost: 180, range: 1.9, rate: 1.8, dmg: 6, push: 45,
-    desc: 'Ventilator de server: suflă porcii din jur înapoi pe hol. Nu-l mișcă pe Porcul Rege.', ups: ['Turație mare: îi suflă mai departe.', 'Turbo: suflă și mult mai des.'] },
+  digger: { cat: 'atk', name: 'Săpătorul', lvl: 2, cost: 180, range: 2.0, rate: 2.6, dmg: 14, stun: 0.8,
+    desc: 'Un coleg musculos care sapă gropi pe hol. Porcii cad în ele, se lovesc și pierd timp.', ups: ['Gropi mai adânci: porcii stau mai mult jos și se lovesc mai tare.', 'Sapă mult mai repede, iar fiecare groapă prinde mai mulți porci.'] },
   firewall: { cat: 'atk', name: 'Firewall', lvl: 3, cost: 200, range: 1.5, dps: 26,
     desc: 'Arde continuu tot ce trece pe lângă el. Excelent pe colțurile holului.', ups: ['Ardere +60%.', 'Firewall enterprise: rază mai mare.'] },
   slicer: { cat: 'atk', name: 'Feliator', lvl: 4, cost: 220, range: 2.6, rate: 1.2, dmg: 22, bounce: 3,
@@ -108,7 +108,7 @@ const TOWERS = {
   coffee: { cat: 'help', name: 'Espressor', lvl: 1, cost: 150, range: 2.5, buff: 0.25,
     desc: 'Capcanele de atac din jur trag cu 25% mai tare și mai des.', ups: ['Dublu espresso: +35%.', 'Cafea de specialitate: +45% și rază mai mare.'] },
 };
-const ATK = ['stapler', 'printer', 'fan', 'firewall', 'slicer', 'vacuum'], HELP = ['bubbles', 'coffee'], TORDER = ATK.concat(HELP);
+const ATK = ['stapler', 'printer', 'digger', 'firewall', 'slicer', 'vacuum'], HELP = ['bubbles', 'coffee'], TORDER = ATK.concat(HELP);
 const upCost = t => Math.round(TOWERS[t.type].cost * 0.75 * t.lvl);
 const towerRange = t => (TOWERS[t.type].range + (t.type === 'printer' ? 0.3 : t.type === 'firewall' ? (t.lvl >= 3 ? 0.5 : 0) : t.type === 'bubbles' ? (t.lvl >= 3 ? 0.6 : 0) : t.type === 'coffee' ? (t.lvl >= 3 ? 0.5 : 0) : 0.2) * (t.lvl - 1)) * TS;
 
@@ -232,6 +232,7 @@ function drawFromBag(name, arr, sim) {
 }
 
 // =================================================================== HĂRȚI
+const LEAD = 15; // câte pătrățele vine drumul din afara hărții
 const inb = (c, r) => c >= 0 && r >= 0 && c < COLS && r < ROWS;
 const grid = v => Array.from({ length: ROWS }, () => Array(COLS).fill(v));
 const LD = LEVELS.map((lv, li) => {
@@ -240,7 +241,7 @@ const LD = LEVELS.map((lv, li) => {
     const out = []; let tp = false, zip = false;
     for (const q of p) { if (q === 'L') { tp = true; continue; } if (q === 'Z') { zip = true; continue; } out.push({ x: q[0] * TS + TS / 2, y: q[1] * TS + TS / 2 + MY, c: q[0], r: q[1], tp, zip }); tp = zip = false; }
     const a = out[0], b = out[1], dx = Math.sign(b.c - a.c), dy = Math.sign(b.r - a.r);
-    out.unshift({ x: a.x - dx * TS * 4, y: a.y - dy * TS * 4, c: a.c - dx * 4, r: a.r - dy * 4, tp: false, zip: false });
+    out.unshift({ x: a.x - dx * TS * LEAD, y: a.y - dy * TS * LEAD, c: a.c - dx * LEAD, r: a.r - dy * LEAD, tp: false, zip: false }); // drumul vine de departe, până la marginea ecranului
     for (let i = 1; i < out.length; i++) { if (out[i].tp) d.lifts.push([out[i - 1], out[i]]); if (out[i].zip) d.zips.push([out[i - 1], out[i]]); }
     return out;
   });
@@ -372,6 +373,7 @@ const SFX = {
   stomp: t => { osc('sine', 75, t, 0.35, 0.9, null, 32); nz(t, 0.25, 0.5, 'lowpass', 220); },
   staple: t => { nz(t, 0.04, 0.22, 'highpass', 3000); osc('square', 1800, t, 0.03, 0.03); },
   paper: t => nz(t, 0.12, 0.2, 'bandpass', 2500, null, 0.8),
+  dig: t => { nz(t, 0.16, 0.16, 'lowpass', 700, null, 1.2); osc('triangle', 220, t, 0.08, 0.12, null, 110); nz(t + 0.07, 0.12, 0.08, 'highpass', 2500); },
   thud: t => { osc('sine', 160, t, 0.12, 0.25, null, 70); nz(t, 0.1, 0.15, 'lowpass', 900); },
   fire: t => nz(t, 0.3, 0.08, 'lowpass', 900),
   whoosh: t => { nz(t, 0.5, 0.35, 'bandpass', 700, null, 0.8); nz(t + 0.1, 0.4, 0.2, 'bandpass', 1400, null, 1); },
@@ -442,7 +444,7 @@ function pad(type, f, t, dur, vol, cut) {
 function vibes(f, t, dur, vol) { osc('sine', f, t, dur, vol, AU.sgn); osc('sine', f * 4.01, t, dur * 0.4, vol * 0.25, AU.sgn); osc('sine', f * 1.003, t + 0.01, dur, vol * 0.6, AU.sgn); }
 function sched() {
   const A = AU.ctx; if (!A || A.state !== 'running') return;
-  const hush = scr === 'play' && paused && !autoPause; if (AU.hush !== hush) { AU.hush = hush; AU.mg.gain.setTargetAtTime(hush ? 0 : 0.5, A.currentTime, 0.04); }
+  const hush = false; // muzica merge și la pauză; o oprești din butonul de sunet if (AU.hush !== hush) { AU.hush = hush; AU.mg.gain.setTargetAtTime(hush ? 0 : 0.5, A.currentTime, 0.04); }
   if (hush) { AU.next = A.currentTime + 0.05; return; }
   if (AU.next < A.currentTime) AU.next = A.currentTime + 0.05;
   if (AU.songKey !== wantSong) { // schimbare imediată: piesa veche se stinge rapid, cea nouă pornește acum
@@ -496,16 +498,20 @@ function toLocal() { const m = ctx.getTransform(), X = mouse.x * K, Y = mouse.y 
 let hoverBlock = false;
 const hov = (x, y, w, h) => { if (hoverBlock) return false; const p = toLocal(); return p.x >= x && p.x < x + w && p.y >= y && p.y < y + h; };
 function region(x, y, w, h, fn, drag) { const m = ctx.getTransform(); BTN.push({ x: (m.a * x + m.e) / K, y: (m.d * y + m.f) / K, w: w * m.a / K, h: h * m.d / K, fn, drag }); }
+const VIVID = { '#2fa865': '#1fbe5c', '#5b6474': '#5c6f93', '#c0443b': '#ec4a4a', '#4f7cff': '#3d7bff', '#4a5060': '#4c5a78', '#3a4050': '#3c4763', '#c27c1f': '#f2921c', '#b5443b': '#e8484d', '#7a3b3b': '#c43d55', '#d98a1f': '#ff9d1a', '#d9480f': '#ff5a1f', '#6b5a3a': '#8a7346' };
 function button(x, y, w, h, label, fn, o = {}) {
-  const dis = o.disabled, hv = !dis && hov(x, y, w, h), c = o.color || '#4f7cff', r = o.r ?? 12, lift = hv ? 2 : 0;
-  ctx.fillStyle = 'rgba(0,0,0,.35)'; rr(x, y + 4, w, h, r); ctx.fill();
-  ctx.fillStyle = dis ? lg(0, y, 0, y + h, ['#5a606c', '#42464f']) : lg(0, y, 0, y + h, [shade(c, hv ? 34 : 16), shade(c, hv ? 4 : -22)]);
-  rr(x, y - lift, w, h, r); ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.lineWidth = 1.5; ctx.stroke();
-  ctx.fillStyle = 'rgba(255,255,255,.12)'; rr(x + 3, y - lift + 2, w - 6, h * 0.42, Math.max(2, r - 2)); ctx.fill();
+  const dis = o.disabled, hv = !dis && hov(x, y, w, h), c = VIVID[o.color || '#4f7cff'] || o.color || '#3d7bff', r = o.r ?? 12, lift = hv ? 2 : 0;
+  ctx.fillStyle = 'rgba(0,0,0,.3)'; rr(x, y + 6, w, h, r); ctx.fill(); // umbră
+  ctx.fillStyle = dis ? '#33363e' : shade(c, -48); rr(x, y + 3.5, w, h, r); ctx.fill(); // marginea 3D
+  ctx.fillStyle = dis ? lg(0, y, 0, y + h, ['#5d636f', '#454951']) : lg(0, y - lift, 0, y + h - lift, [shade(c, hv ? 38 : 26), c, shade(c, hv ? -2 : -14)]);
+  rr(x, y - lift, w, h, r); ctx.fill(); ctx.strokeStyle = dis ? 'rgba(255,255,255,.12)' : 'rgba(255,255,255,.32)'; ctx.lineWidth = 1.5; ctx.stroke();
+  if (!dis) { ctx.fillStyle = lg(0, y - lift, 0, y - lift + h * 0.5, ['rgba(255,255,255,.34)', 'rgba(255,255,255,.04)']); rr(x + 3, y - lift + 2, w - 6, h * 0.46, Math.max(2, r - 2)); ctx.fill(); }
+  ctx.save(); if (!dis) { ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowOffsetY = 1.5; ctx.shadowBlur = 2; }
   const sz = o.size || 18;
   if (o.icon && label) { ctx.font = `900 ${sz}px ${FB}`; const tw = Math.min(ctx.measureText(label).width, w - 50), x0 = x + w / 2 - (tw + 28) / 2; o.icon(x0 + 10, y + h / 2 - lift); fitText(label, x0 + 28, y + h / 2 - lift + 1, w - 50, sz, dis ? '#b5b9c3' : '#fff', 'left', '900'); }
   else if (o.icon) o.icon(x + w / 2, y + h / 2 - lift);
   else fitText(label, x + w / 2, y + h / 2 - lift + 1, w - 14, sz, dis ? '#b5b9c3' : '#fff', 'center', '900');
+  ctx.restore();
   if (!dis && fn) region(x, y, w, h, () => { sfx('click'); fn(); });
 }
 let SL = { x: 0, w: 1 };
@@ -563,6 +569,7 @@ function toggleFS() {
   const el = document.documentElement, fsEl = document.fullscreenElement || document.webkitFullscreenElement;
   if (fsEl) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); return; }
   const req = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (standalone) { fsTip = 'app'; return; }
   if (req && !isIPhone) { try { const p = req.call(el, { navigationUI: 'hide' }); if (p && p.catch) p.catch(() => { fsTip = true; }); if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => { }); } catch (e) { fsTip = true; } }
   else fsTip = true;
 }
@@ -576,13 +583,14 @@ function drawFsTip() {
   ctx.fillStyle = 'rgba(8,10,14,.85)'; ctx.fillRect(0, 0, W, H); region(0, 0, W, H, () => { });
   const w = Math.min(680, W - 40), h = 340, x = (W - w) / 2, y = (H - h) / 2;
   ctx.fillStyle = '#232836'; rr(x, y, w, h, 22); ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,.15)'; ctx.stroke();
+  if (fsTip === 'app') { textS('Ești deja pe tot ecranul', W / 2, y + 50, 30, '#fff'); ['Ai deschis jocul din iconița de pe ecranul principal,', 'așa că rulează deja ca o aplicație, pe tot ecranul.', 'Mai mult de atât nu permite iPhone-ul. Spor la vânat porci!'].forEach((l, i) => fitText(l, W / 2, y + 112 + i * 34, w - 60, 18, '#dde2ec', 'center', '700')); button(W / 2 - 90, y + h - 66, 180, 48, 'Am înțeles', () => fsTip = false, { color: '#2fa865', size: 20 }); return; }
   textS('Ecran complet pe iPhone', W / 2, y + 50, 30, '#fff');
   ['Safari pe iPhone nu permite ecran complet direct din pagină,', 'dar există un truc care merge perfect:', '1.  Apasă butonul Share (pătratul cu săgeată în sus)', '2.  Alege „Adaugă pe ecranul principal”', '3.  Deschide jocul din iconița nouă'].forEach((l, i) => fitText(l, x + 36, y + 106 + i * 32, w - 72, 18, i < 2 ? '#c9cedb' : '#fff'));
   button(W / 2 - 90, y + h - 66, 180, 48, 'Am înțeles', () => fsTip = false, { color: '#2fa865', size: 20 });
 }
 
 // =================================================================== FUNDALURI (randate la rezoluție mare, cu podeaua extinsă dincolo de hartă)
-const PADX = 320, PADY = 240, BGW = MW + 2 * PADX, BGH = MH + 2 * PADY;
+const PADX = 720, PADY = 240, BGW = MW + 2 * PADX, BGH = MH + 2 * PADY;
 const BG = new Map();
 function getBG(li, q) {
   const key = li + '_' + q;
@@ -640,7 +648,11 @@ function drawBG(x, li) {
   x.fillStyle = 'rgba(120,200,255,.10)'; x.fillRect(0, 0, MW, MH); x.strokeStyle = 'rgba(120,200,255,.22)'; x.lineWidth = 6; for (let i = -MH; i < MW; i += 22) { x.beginPath(); x.moveTo(i, 0); x.lineTo(i + MH, MH); x.stroke(); } x.restore();
   // holul (traseul)
   const [bc, fc, sc] = RUG[th];
-  const segs = []; d.paths.forEach(pts => { let cur = []; pts.forEach(p => { if (p.tp || p.zip) { segs.push(cur); cur = []; } cur.push([p.x, p.y - MY]); }); segs.push(cur); });
+  const segs = []; d.paths.forEach(pts => { let cur = []; pts.forEach(p => { if (p.tp || p.zip) { segs.push(cur); cur = []; } cur.push([p.x, p.y - MY]); });
+    // capătul drumului continuă drept până sub biroul programatorului, ca să nu se termine brusc lângă el
+    const L = pts[pts.length - 1], P = pts[pts.length - 2], pcx = (d.prog.c + 1.5) * TS, pcy = (d.prog.r + 1.6) * TS;
+    if (P) { const hz = Math.abs(L.x - P.x) > Math.abs(L.y - P.y); cur.push(hz ? [pcx, L.y - MY] : [L.x, pcy]); }
+    segs.push(cur); });
   x.lineJoin = 'miter'; x.lineCap = 'butt';
   const stroke = (w, col, dash) => segs.forEach(pts => { if (pts.length < 2) return; x.beginPath(); pts.forEach(([a, b], i) => i ? x.lineTo(a, b) : x.moveTo(a, b)); x.lineWidth = w; x.strokeStyle = col; x.setLineDash(dash || []); x.stroke(); });
   if (th === 'party') { x.shadowColor = '#18e0ff'; x.shadowBlur = 18; }
@@ -752,6 +764,7 @@ function drawFx(ui) {
       else if (p.mode === 'blown') { rot = k * 7 * (p.face || 1); sx = sy = 1 - k * 0.5; }
       else if (p.mode === 'burnt') { sy = 1 - k * 0.25; }
       else if (p.mode === 'spin') { rot = k * 12; sx = sy = 1 - k * 0.8; }
+      else if (p.mode === 'fall') { y += k * 18; sx = 1 - k * 0.3; sy = 1 - k * 0.7; }
       else if (p.mode === 'suck') { x = p.x + (p.tx - p.x) * k; y = p.y + (p.ty - p.y) * k; sx = sy = 1 - k * 0.9; rot = k * 8; }
       ctx.save(); ctx.globalAlpha = Math.min(1, a * 1.6); ctx.translate(x, y); ctx.rotate(rot); ctx.scale(sx, sy);
       drawPig({ type: p.type, face: p.face || 1, anim: 0, flash: !char && k < 0.2 ? 1 : 0, slow: 1, hp: 1, max: 1, id: 1, bub: 0, char }, 0, 0, 1, 0); ctx.restore();
@@ -765,16 +778,16 @@ function drawFx(ui) {
 }
 
 // =================================================================== STARE JOC
-let autoPause = false, scr = 'splash', G = null, DG = null, paused = false, selShop = null, selTower = null, loseReason = '', tut = null, unlockPop = null, restartAsk = false;
+let confirmK = null, confirmT = 0, autoPause = false, scr = 'splash', G = null, DG = null, paused = false, selShop = null, selTower = null, loseReason = '', tut = null, unlockPop = null, restartAsk = false;
 // între sesiuni se păstrează doar câte hărți sunt deblocate (plus volumul); restul e doar pentru sesiunea curentă
 for (const k of ['po_done4', 'po_seen4', 'po_hard4', 'po_hard', 'po_bag_good', 'po_bag_bad']) try { localStorage.removeItem(k); } catch (e) { }
-const progress = { unlocked: store.get('po_unlocked4', 1), seen: [] };
+const progress = { unlocked: Math.min(NL + 1, store.get('po_unlocked4', 1)), seen: [] };
 const hardMode = true; // un singur mod: cu timp limitat între runde
 
 function newGame(li, o = {}) {
   return { li, demo: !!o.demo, sim: !!o.sim, money: LEVELS[li].money, bs: 0, wave: 0, state: 'build', pigs: [], towers: [], projs: [],
     queue: [], qT: 0, req: null, nextReq: 6, canim: null, face: { type: 'normal', t: 0 }, msg: '', msgT: 0, idc: 1, speed: 1, demoT: 1.5,
-    snap: null, time: 0, ev: null, evNext: 14, banners: [], result: null, kills: 0, wake: {}, hard: !!o.hard, buildT: o.hard ? 25 : 0, killsBy: {}, earned: 0, lastMoney: LEVELS[li].money, cl: { ok: 0, n: 0, badOk: 0, late: 0 }, leaks: {} };
+    snap: null, time: 0, ev: null, evNext: 14, banners: [], result: null, kills: 0, wake: {}, hard: !!o.hard, buildT: o.hard ? 25 : 0, pits: [], killsBy: {}, earned: 0, lastMoney: LEVELS[li].money, cl: { ok: 0, n: 0, badOk: 0, late: 0 }, leaks: {} };
 }
 const gwOf = g => LSTART[g.li] + g.wave + 1;
 const diffOf = g => LSTART[g.li] * DIFF_L * (0.7 + 0.1 * Math.min(3, g.wave)) + (g.wave + 1) * DIFF_W; // primele runde din fiecare nivel sunt mai blânde
@@ -812,8 +825,9 @@ function spawnPig(g, type, pi, from) {
   const hp = d.hp * hpMult(df) * (g.hard ? 1.1 : 1);
   const p = { type, path: pi, seg: 0, x: P.x, y: P.y, dist: 0, hp, max: hp, spd: d.spd * (0.92 + Math.random() * 0.16), slow: 1, boost: 1, face: 1, anim: Math.random() * 6,
     flash: 0, ox: (Math.random() - 0.5) * 12, oy: (Math.random() - 0.5) * 8, id: g.idc++, dead: false, stepT: 0.5, dodgeT: 0, lift: 0, bub: 0 };
+  if (!from && !g.tutSkip) { p.dist = spawnDist(g, pi); const q = posAt(g.li, pi, p.dist); p.x = q.x; p.y = q.y; p.seg = q.seg; }
   if (from) { p.seg = from.seg; p.x = from.x + (Math.random() - 0.5) * 14; p.y = from.y + (Math.random() - 0.5) * 8; p.dist = from.dist; }
-  else if (g.tutSkip) { p.dist = 3.7 * TS; const q = posAt(g.li, pi, p.dist); p.x = q.x; p.y = q.y; p.seg = q.seg; }
+  else if (g.tutSkip) { p.dist = (LEAD - 0.3) * TS; const q = posAt(g.li, pi, p.dist); p.x = q.x; p.y = q.y; p.seg = q.seg; }
   g.pigs.push(p);
   if (!g.demo && !g.sim) {
     if (!progress.seen.includes(type)) { progress.seen.push(type); banner(g, { kind: 'pig', type, title: type === 'king' ? 'A sosit PORCUL REGE!' : 'Porc nou: ' + d.name, text: d.desc, dur: 4.5 }); if (type !== 'king') gsfx(g, 'oink'); }
@@ -827,7 +841,7 @@ function damage(g, p, amt) {
   if (p.hp <= 0) {
     p.dead = true; const d = PIGS[p.type]; g.money += d.reward; g.kills++; if (curSrc && curSrc.k && g.killsBy) g.killsBy[curSrc.k] = (g.killsBy[curSrc.k] || 0) + 1;
     if (!g.sim) {
-      const src = curSrc || { k: '' }, mode = { printer: 'flat', fan: 'blown', firewall: 'burnt', slicer: 'spin', vacuum: 'suck' }[src.k] || 'puff';
+      const src = curSrc || { k: '' }, mode = { printer: 'flat', digger: 'fall', firewall: 'burnt', slicer: 'spin', vacuum: 'suck' }[src.k] || 'puff';
       puff(p.x, p.y, mode === 'burnt' ? '#6a5a50' : '#ffc3d1', mode === 'puff' ? 12 : 6);
       if (mode === 'burnt') smoke(p.x, p.y - 8, 5);
       if (mode !== 'puff') { const sx = src.x ?? p.x, sy = src.y ?? p.y, dx = p.x - sx, dy = p.y - sy, dl = Math.hypot(dx, dy) || 1, L = mode === 'suck' ? 0.35 : 0.55;
@@ -842,6 +856,13 @@ function damage(g, p, amt) {
 }
 const pigRemain = (g, p) => LD[g.li].lens[p.path] - p.dist;
 const targetable = p => !p.dead && p.lift <= 0;
+// porcii pornesc ca înainte (4 pătrățele în afara hărții); pe ecranele foarte late, chiar de după marginea ecranului
+function spawnDist(g, pi) {
+  const base = (LEAD - 4) * TS; if (g.sim) return base;
+  const pts = LD[g.li].paths[pi], a = pts[1], s = VIEW.s, l = -VIEW.ox / s, r = (AW - VIEW.ox) / s, t = (MY - VIEW.oy) / s + MY, b = (H - VIEW.oy) / s + MY;
+  const dx = Math.sign(a.x - pts[0].x), dy = Math.sign(a.y - pts[0].y), ext = dx > 0 ? a.x - l : dx < 0 ? r - a.x : dy > 0 ? a.y - t : b - a.y;
+  return clamp(LEAD * TS - (ext + 45), 0, base);
+}
 function targetIn(g, cx, cy, R, filt) {
   let best = null, bd = 1e9;
   for (const p of g.pigs) { if (!targetable(p) || (filt && !filt(p))) continue; const dx = p.x - cx, dy = p.y - cy; if (dx * dx + dy * dy > R * R) continue; const v = pigRemain(g, p); if (v < bd) { bd = v; best = p; } }
@@ -871,7 +892,7 @@ function endGame(g, kind, reason) {
   selShop = null; selTower = null;
   if (kind === 'lose') { loseReason = reason; scr = 'lose'; sfx('lose'); }
   else {
-    const li = g.li; progress.unlocked = Math.max(progress.unlocked, Math.min(NL, li + 2)); store.set('po_unlocked4', progress.unlocked);
+    const li = g.li; progress.unlocked = Math.max(progress.unlocked, li + 2); // NL + 1 = toate terminate store.set('po_unlocked4', progress.unlocked);
     sfx('win'); confetti(W / 2, H / 2, 90, true); wantSong = 'victory';
     scr = li === NL - 1 ? 'final' : 'win';
   }
@@ -913,6 +934,12 @@ function updateGame(g, dt) {
   }
   // efecte de zonă
   for (const p of g.pigs) { p.slow = 1; p.boost = 1; p.bub = Math.max(0, p.bub - dt); }
+  if (g.pits && g.pits.length) { for (const pt of g.pits) { pt.t += dt; if (pt.hits.length >= pt.cap) continue;
+      for (const p of g.pigs) { if (p.dead || p.lift > 0 || pt.hits.includes(p.id) || pt.hits.length >= pt.cap || Math.hypot(p.x - pt.x, p.y - pt.y) > 16 + 6 * PIGS[p.type].size) continue;
+        pt.hits.push(p.id); curSrc = { k: 'digger', x: pt.x, y: pt.y }; damage(g, p, pt.dmg); curSrc = null;
+        if (!p.dead) { p.stun = Math.max(p.stun || 0, p.type === 'king' ? pt.stun * 0.35 : pt.stun); p.stunMax = p.stun; gsfx(g, 'thud', 0.08); } }
+      if (pt.hits.length >= pt.cap) pt.t = Math.max(pt.t, pt.max - 0.35); }
+    g.pits = g.pits.filter(pt => pt.t < pt.max); }
   for (const p of g.pigs) if (p.type === 'manager' && !p.dead) for (const q of g.pigs) if (q !== p && Math.abs(q.x - p.x) < 75 && Math.abs(q.y - p.y) < 75) q.boost = PIGS.manager.aura;
   for (const t of g.towers) t.buff = 1;
   for (const t of g.towers) {
@@ -933,6 +960,7 @@ function updateGame(g, dt) {
     const pts = d.paths[p.path];
     if (p.lift > 0) { p.lift -= dt; if (p.lift <= 0) { const a = pts[p.seg + 1]; p.x = a.x; p.y = a.y; p.seg++; } continue; }
     const tc = Math.floor(p.x / TS), tr = Math.floor((p.y - MY) / TS), wet = inb(tc, tr) && d.wetT[tr][tc] ? 1.6 : 1;
+    if (p.stun > 0) { p.stun -= dt; continue; } // a căzut în groapă
     const sp = p.spd * p.slow * p.boost * pigMul * wet;
     p.anim += dt * 11 * p.slow;
     if (p.type === 'king') { p.stepT -= dt; if (p.stepT <= 0) { p.stepT = 0.8; gsfx(g, 'stomp', 0.2); if (Math.random() < 0.4) gsfx(g, 'kinggrunt', 0.6); if (!g.sim && !g.demo) { shakeT = Math.max(shakeT, 0.22); shakeA = 1.2; puff(p.x, p.y + 30, 'rgba(180,160,140,.6)', 5); } } }
@@ -970,12 +998,12 @@ function updateGame(g, dt) {
         const pts = d.paths[p.path], nx = pts[Math.min(p.seg + 1, pts.length - 1)], dx = nx.x - p.x, dy = nx.y - p.y, dl = Math.hypot(dx, dy) || 1, lead = Math.min(0.55 * p.spd * p.slow, dl);
         g.projs.push({ k: 'paper', sx: cx, sy: cy - 10, tx: p.x + dx / dl * lead, ty: p.y + dy / dl * lead, t: 0, dur: 0.55, dmg: T.dmg * (t.lvl >= 2 ? 1.6 : 1) * t.buff, sp: (T.splash + (t.lvl >= 3 ? 0.6 : 0)) * TS }); gsfx(g, 'paper', 0.1);
       } }
-    } else if (t.type === 'fan') {
-      if (t.cd <= 0) { const hits = g.pigs.filter(p => targetable(p) && Math.hypot(p.x - cx, p.y - cy) < R); if (hits.length) {
-        t.cd = T.rate * (t.lvl >= 3 ? 0.55 : 1); t.fx = 0.5; gsfx(g, 'whoosh', 0.2); if (!g.sim) wind(cx, cy, R);
-        const push = T.push * (t.lvl >= 2 ? 1.5 : 1);
-        for (const p of hits) { damage(g, p, T.dmg * t.buff); if (!p.dead && p.type !== 'king') { p.dist = Math.max(0, p.dist - push); const q = posAt(g.li, p.path, p.dist); p.x = q.x; p.y = q.y; p.seg = q.seg; } }
-      } }
+    } else if (t.type === 'digger') { // sapă o groapă chiar în fața porcului cel mai avansat din rază
+      if (t.cd <= 0) { const tg = g.pigs.filter(p => targetable(p) && !(p.stun > 0) && Math.hypot(p.x - cx, p.y - cy) < R).sort((a, b) => b.dist - a.dist)[0];
+        if (tg) { const q = posAt(g.li, tg.path, tg.dist + Math.min(26, tg.spd * 0.4));
+          t.cd = T.rate * (t.lvl >= 3 ? 0.6 : 1) / rm; t.fx = 0.6; t.ang = Math.atan2(q.y - cy, q.x - cx); gsfx(g, 'dig', 0.15);
+          (g.pits || (g.pits = [])).push({ x: q.x, y: q.y, t: 0, max: 3.2, cap: t.lvl >= 3 ? 4 : 2, hits: [], dmg: T.dmg * (t.lvl >= 2 ? 1.6 : 1) * t.buff, stun: T.stun * (t.lvl >= 2 ? 1.4 : 1), sx: cx, sy: cy });
+          if (!g.sim) for (let i = 0; i < 7; i++) FX.push({ k: 'spark', x: q.x, y: q.y, vx: (Math.random() - 0.5) * 120, vy: -60 - Math.random() * 90, l: 0.45, m: 0.45, c: '#7a5232', s: 3 }); } }
     } else if (t.type === 'firewall') {
       let any = false; for (const p of g.pigs) if (targetable(p) && Math.hypot(p.x - cx, p.y - cy) < R) { damage(g, p, T.dps * (t.lvl >= 2 ? 1.6 : 1) * t.buff * rateMul * dt); any = true; }
       if (any) { t.fx = 0.25; gsfx(g, 'fire', 0.28); }
@@ -1035,6 +1063,40 @@ function updateGame(g, dt) {
 }
 
 // =================================================================== DESEN: porci
+function drawDigger(ang, fx, time) {
+  const k = fx > 0 ? clamp(fx / 0.6, 0, 1) : 0, sw = Math.sin(k * Math.PI), f = Math.cos(ang || 0) < 0 ? -1 : 1, br = Math.sin(time * 2.4) * 0.4;
+  ctx.fillStyle = 'rgba(0,0,0,.28)'; ell(0, 18, 19, 5.5); ctx.fill();
+  ctx.save(); ctx.translate(0, 2); ctx.scale(f * 1.22, 1.22);
+  // movilă de pământ
+  ctx.fillStyle = '#7a5232'; ell(13, 15, 8, 4); ctx.fill(); ctx.fillStyle = '#946640'; ell(12, 13.5, 5, 2.5); ctx.fill();
+  // picioare (blugi) și bocanci
+  ctx.fillStyle = '#2f4a73'; rr(-8, 4, 7, 11, 2); ctx.fill(); rr(1, 4, 7, 11, 2); ctx.fill(); ctx.fillStyle = '#3a2a1c'; rr(-9, 13, 9, 4, 2); ctx.fill(); rr(0, 13, 9, 4, 2); ctx.fill();
+  // tors: maiou gri pe piept lat
+  ctx.fillStyle = '#e2a57e'; ctx.beginPath(); ctx.moveTo(-13, -8); ctx.quadraticCurveTo(0, -12 + br, 13, -8); ctx.lineTo(9, 6); ctx.lineTo(-9, 6); ctx.fill();
+  ctx.fillStyle = lg(0, -10, 0, 6, ['#9aa3ad', '#6f7882']); ctx.beginPath(); ctx.moveTo(-8, -9); ctx.lineTo(-5, -9); ctx.quadraticCurveTo(0, -5, 5, -9); ctx.lineTo(8, -9); ctx.lineTo(9, 6); ctx.lineTo(-9, 6); ctx.fill();
+  ctx.fillStyle = '#5b3a24'; rr(-9, 4, 18, 3, 1); ctx.fill();
+  // lopata, ținută cu ambele mâini; coboară în groapă când sapă
+  ctx.save(); ctx.translate(4, -2); ctx.rotate(-0.9 + sw * 1.25);
+  ctx.strokeStyle = '#8a5a2b'; ctx.lineWidth = 2.6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(16, 0); ctx.stroke();
+  ctx.fillStyle = lg(16, -5, 24, 5, ['#d7dbe2', '#8d939e']); ctx.beginPath(); ctx.moveTo(15, -4.5); ctx.lineTo(23, -3.5); ctx.quadraticCurveTo(26, 0, 23, 3.5); ctx.lineTo(15, 4.5); ctx.fill();
+  if (k > 0.3) { ctx.fillStyle = '#7a5232'; ell(22, -1, 3.5, 2.5); ctx.fill(); }
+  ctx.restore();
+  // brațe musculoase (biceps mari)
+  const hx = 4 + Math.cos(-0.9 + sw * 1.25) * 3, hy = -2 + Math.sin(-0.9 + sw * 1.25) * 3;
+  ctx.fillStyle = '#d99a72'; ell(-13, -4, 5, 6.5); ctx.fill(); ell(13, -4, 5, 6.5); ctx.fill();
+  ctx.strokeStyle = '#d99a72'; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(-13, 0); ctx.lineTo(hx - 3, hy + 1); ctx.moveTo(13, 0); ctx.lineTo(hx + 5, hy + 2); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.22)'; ell(-14, -7, 2, 2.5); ctx.fill(); ell(12, -7, 2, 2.5); ctx.fill();
+  // cap: păr negru scurt, barbă stubble îngrijită
+  ctx.fillStyle = '#c98d66'; ctx.fillRect(-3, -14, 6, 4);
+  ctx.fillStyle = rg(-2, -21, 1, 10, ['#f1bd96', '#e2a57e', '#c98d66']); ell(0, -19, 7.5, 8.5); ctx.fill();
+  ctx.save(); ell(0, -19, 7.5, 8.5); ctx.clip(); ctx.fillStyle = 'rgba(40,28,22,.45)'; ell(0, -13, 8, 5.5); ctx.fill(); ctx.fillStyle = 'rgba(40,28,22,.25)'; ell(0, -16.2, 3.4, 1); ctx.fill(); ctx.restore();
+  ctx.fillStyle = '#16120f'; ctx.beginPath(); ctx.ellipse(0, -22, 7.8, 6, 0, Math.PI, 0); ctx.lineTo(7.8, -20); ctx.quadraticCurveTo(0, -24.5, -7.8, -20); ctx.fill();
+  ctx.fillStyle = '#1a1210'; ell(-2.7, -19, 0.9, 1.1); ctx.fill(); ell(2.7, -19, 0.9, 1.1); ctx.fill();
+  ctx.strokeStyle = '#16120f'; ctx.lineWidth = 1.1; ctx.beginPath(); ctx.moveTo(-4.4, -21); ctx.lineTo(-1.2, -20.6); ctx.moveTo(1.2, -20.6); ctx.lineTo(4.4, -21); ctx.stroke();
+  ctx.strokeStyle = '#7a3e2c'; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.arc(0, -15.6, 2.2, 0.2, Math.PI - 0.2); ctx.stroke();
+  if (k > 0) { ctx.fillStyle = 'rgba(120,190,255,.8)'; ell(6.5, -24, 1, 1.6); ctx.fill(); }
+  ctx.restore();
+}
 function drawPig(p, x, y, sc = 1, time = 0) {
   const d = PIGS[p.type], s = d.size * sc, f = p.face, t = p.type, bt = p.bubT || 0;
   if (bt > 0) y -= Math.min(1, bt * 3) * (4 + Math.sin(time * 5 + p.id) * 2) * s;
@@ -1124,6 +1186,8 @@ function drawTower(type, cx, cy, ang, fx, time, t) {
     ctx.fillStyle = '#3c3f47'; rr(-15, -9, 30, 7, 2); ctx.fill();
     const up = fx > 0 ? -3 : 0; ctx.fillStyle = '#fff'; ctx.fillRect(-11, -17 + up, 22, 9); ctx.fillStyle = '#c9ccd2'; ctx.fillRect(-8, -14 + up, 14, 1); ctx.fillRect(-8, -11 + up, 10, 1);
     ctx.fillStyle = '#2b2e35'; ctx.fillRect(-14, 5, 28, 3); ctx.fillStyle = (Math.floor(time * 3) % 2) ? '#3df07a' : '#1b8a44'; ell(13, 0, 2, 2); ctx.fill();
+  } else if (type === 'digger') {
+    drawDigger(ang, fx, time);
   } else if (type === 'fan') {
     ctx.fillStyle = 'rgba(0,0,0,.3)'; rr(-16, -14, 36, 36, 6); ctx.fill();
     ctx.fillStyle = lg(0, -18, 0, 18, ['#4a5162', '#262a33']); rr(-18, -18, 36, 36, 6); ctx.fill();
@@ -1177,7 +1241,7 @@ function drawRobot(t, time) {
   ctx.save(); ctx.translate(x, y); ctx.rotate(time * 20); ctx.strokeStyle = 'rgba(200,210,225,.7)'; ctx.lineWidth = 1.5; for (let i = 0; i < 3; i++) { ctx.rotate(Math.PI * 2 / 3); ctx.beginPath(); ctx.moveTo(10, 10); ctx.lineTo(18, 13); ctx.stroke(); } ctx.restore();
 }
 function towerDots(t, g) {
-  const cx = t.c * TS + 25, cy = MY + t.r * TS + 3;
+  const cx = t.c * TS + 25, cy = MY + t.r * TS + (t.type === 'digger' ? -11 : 3);
   for (let i = 0; i < 3; i++) {
     const x = cx - 8 + i * 8; let col = '#5b606c';
     if (i < t.lvl) col = '#ffd84d'; else if (i === t.lvl) col = g.money >= upCost(t) ? '#3fe07a' : '#5b606c';
@@ -1222,7 +1286,7 @@ function drawPerson(cx, by, s, o, mood, t, typing, angry, sleep) {
     ctx.restore();
   }
   ctx.fillStyle = lg(0, 18, 0, 34, [shade(o.hair, 20), o.hair]);
-  if (['short', 'long', 'bun', 'ponytail'].includes(o.style)) { ctx.beginPath(); ctx.ellipse(0, 31, 17.5, 13.5, 0, Math.PI, 0); ctx.lineTo(17.5, 36); ctx.lineTo(15, 34); ctx.quadraticCurveTo(4, 25, -8, 28); ctx.lineTo(-15, 34); ctx.lineTo(-17.5, 36); ctx.closePath(); ctx.fill(); }
+  if (['short', 'long', 'bun', 'ponytail'].includes(o.style)) { ctx.beginPath(); ctx.ellipse(0, 31, 17.5, 13.5, 0, Math.PI, 0); ctx.lineTo(17.5, 36); ctx.lineTo(15, 34.5); ctx.quadraticCurveTo(4, 28, -8, 30); ctx.lineTo(-15, 34.5); ctx.lineTo(-17.5, 36); ctx.closePath(); ctx.fill(); }
   if (o.style === 'bun') { ell(0, 15, 7, 6); ctx.fill(); }
   if (o.style === 'curly') for (let i = 0; i < 11; i++) { const a = Math.PI * (1.05 + i * 0.09); ell(Math.cos(a) * 15, 32 + Math.sin(a) * 13, 5, 5); ctx.fill(); }
   if (o.style === 'bald') { ctx.fillStyle = 'rgba(255,255,255,.25)'; ell(-4, 25, 7, 3); ctx.fill(); ctx.fillStyle = o.hair; ctx.fillRect(-17, 34, 3, 8); ctx.fillRect(14, 34, 3, 8); }
@@ -1316,7 +1380,7 @@ let darkC = null;
 function drawWorld(g, hints) {
   ctx.save();
   if (shakeT > 0 && !g.demo) { const a = 12 * shakeA * Math.min(1, shakeT / 0.4); ctx.translate((Math.random() - 0.5) * a, (Math.random() - 0.5) * a); }
-  const q = ctx.getTransform().a > 1.25 ? 2 : 1;
+  const q = ctx.getTransform().a > 1.25 ? 1.5 : 1;
   ctx.drawImage(getBG(g.li, q), -PADX, MY - PADY, BGW, BGH);
   const lv = LEVELS[g.li], d = LD[g.li];
   if (VB) for (const e of d.entries) { // lumină roz la intrare, pe jumătate în afara ecranului
@@ -1327,9 +1391,18 @@ function drawWorld(g, hints) {
   drawColleagues(g);
   drawProgrammer(g);
   for (const t of g.towers) if (t.type === 'vacuum' && t.pi >= 0) drawRobot(t, g.time);
+  for (const pt of g.pits || []) { const a = Math.min(1, pt.t * 6, (pt.max - pt.t) * 3), r = 17 * a;
+    ctx.fillStyle = 'rgba(122,82,50,.9)'; ell(pt.x + 12, pt.y + 4, 7 * a, 4.5 * a); ctx.fill(); ell(pt.x - 13, pt.y + 3, 5 * a, 3.5 * a); ctx.fill();
+    ctx.fillStyle = '#5a3a22'; ell(pt.x, pt.y + 2, r, r * 0.55); ctx.fill(); ctx.fillStyle = '#1e130b'; ell(pt.x, pt.y + 3, r * 0.78, r * 0.4); ctx.fill(); }
   const sorted = g.pigs.filter(p => p.lift <= 0).sort((a, b) => a.y - b.y);
   const chorus = g.ev && g.ev.type === 'chorus';
-  for (const p of sorted) drawPig(p, p.x + p.ox * (chorus ? 0.1 : 1), p.y + p.oy * (chorus ? 0.1 : 1) + (chorus ? Math.sin(g.time * 14 + p.id) * 3 : 0), 1, g.time);
+  for (const p of sorted) if (p.stun > 0) { // porc căzut în groapă: se vede doar jumătatea de sus, cu steluțe
+    const k = Math.min(1, (p.stunMax - p.stun) * 8, p.stun * 6), px = p.x, py = p.y, s = PIGS[p.type].size;
+    ctx.save(); ctx.beginPath(); ctx.rect(px - 40 * s, py - 60 * s, 80 * s, 60 * s + 3); ctx.clip(); drawPig({ ...p, hp: p.max }, px, py + 12 * s * k, 1, g.time); ctx.restore();
+    ctx.fillStyle = '#5a3a22'; ctx.beginPath(); ctx.ellipse(px, py + 3, 18 * s, 6 * s, 0, 0, Math.PI); ctx.fill();
+    for (let i = 0; i < 3; i++) { const an = g.time * 6 + i * 2.1; text('★', px + Math.cos(an) * 14 * s, py - 18 * s + Math.sin(an) * 4, 11, '#ffd84d', 'center', '900'); }
+  }
+  for (const p of sorted) if (!(p.stun > 0)) drawPig(p, p.x + p.ox * (chorus ? 0.1 : 1), p.y + p.oy * (chorus ? 0.1 : 1) + (chorus ? Math.sin(g.time * 14 + p.id) * 3 : 0), 1, g.time);
   for (const t of g.towers) { const cx = t.c * TS + 25, cy = MY + t.r * TS + 25, k = t.born != null ? clamp((g.time - t.born) / 0.4, 0, 1) : 1; ctx.save(); if (k < 1) { const e = 1 + 2.7 * Math.pow(k - 1, 3) + 1.7 * Math.pow(k - 1, 2); ctx.translate(cx, cy); ctx.scale(e, e); ctx.translate(-cx, -cy); } drawTower(t.type, cx, cy, t.ang, t.fx, g.time, t); if (!g.demo) towerDots(t, g); ctx.restore(); }
   for (const pr of g.projs) {
     if (pr.k === 'staple') { ctx.save(); ctx.translate(pr.x, pr.y); ctx.rotate(pr.a || 0); ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-18, 0); ctx.lineTo(-4, 0); ctx.stroke(); ctx.strokeStyle = '#e9edf2'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-4, -3); ctx.lineTo(-4, 0); ctx.lineTo(4, 0); ctx.lineTo(4, -3); ctx.stroke(); ctx.restore(); }
@@ -1359,7 +1432,7 @@ function drawHints(g) {
   d.paths.forEach((pts, pi) => {
     const L = d.lens[pi];
     for (let k = 0; k < 6; k++) {
-      const dd = ((t * 90 + k * 55) % 330) + TS * 3.6; if (dd > L) continue;
+      const dd = ((t * 90 + k * 55) % 330) + TS * (LEAD - 0.4); if (dd > L) continue;
       const p = posAt(g.li, pi, dd), p2 = posAt(g.li, pi, dd + 6); if (pts[p.seg + 1] && (pts[p.seg + 1].tp)) continue;
       const a = Math.atan2(p2.y - p.y, p2.x - p.x), fade = 1 - ((t * 90 + k * 55) % 330) / 330;
       ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(a); ctx.globalAlpha = 0.85 * fade; ctx.fillStyle = '#ff7eb0'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
@@ -1420,11 +1493,12 @@ function drawPause() {
   textS('Pauză', W / 2, y + 44, 40, '#fff');
   button(x + 40, y + 78, w - 80, 56, 'Continuă', () => paused = false, { color: '#2fa865', size: 24, icon: ICON.play });
   const hw = (w - 90) / 2, canRound = G.state === 'wave' && !!G.snap;
-  button(x + 40, y + 146, hw, 48, 'Reia runda', () => { restoreRound(); paused = false; }, { color: '#4f7cff', size: 16, icon: ICON.restart, disabled: !canRound });
-  button(x + 50 + hw, y + 146, hw, 48, 'Reia nivelul', () => { paused = false; startLevel(G.li, true); }, { color: '#c27c1f', size: 16, icon: ICON.restart });
+  const ask = k => confirmK === k && performance.now() - confirmT < 3500, tap = (k, fn) => () => { if (ask(k)) { confirmK = null; fn(); } else { confirmK = k; confirmT = performance.now(); } };
+  button(x + 40, y + 146, hw, 48, ask('round') ? 'Sigur? Apasă iar' : 'Reia runda', tap('round', () => { restoreRound(); paused = false; }), { color: ask('round') ? '#ec4a4a' : '#4f7cff', size: 16, icon: ask('round') ? null : ICON.restart, disabled: !canRound });
+  button(x + 50 + hw, y + 146, hw, 48, ask('level') ? 'Sigur? Apasă iar' : 'Reia nivelul', tap('level', () => { paused = false; startLevel(G.li, true); }), { color: ask('level') ? '#ec4a4a' : '#c27c1f', size: 16, icon: ask('level') ? null : ICON.restart });
   button(x + 40, y + 206, w - 80, 48, 'Ieși în meniul principal', goMenu, { color: '#7a3b3b', size: 17, icon: ICON.exit });
   soundRow(x + 40, y + 290, w - 80);
-  text(canRound ? 'Reia runda: o iei de la începutul rundei curente.' : 'Dacă ieși acum, pierzi progresul din nivelul curent.', W / 2, y + h - 26, 13, '#8f97a8', 'center');
+  text(confirmK && performance.now() - confirmT < 3500 ? 'Apasă încă o dată ca să confirmi.' : canRound ? 'Reia runda: o iei de la începutul rundei curente.' : 'Dacă ieși acum, pierzi progresul din nivelul curent.', W / 2, y + h - 26, 13, '#8f97a8', 'center');
 }
 function drawRestartAsk() {
   ctx.fillStyle = 'rgba(10,12,18,.72)'; ctx.fillRect(0, 0, W, H); region(0, 0, W, H, () => { restartAsk = false; });
@@ -1443,7 +1517,7 @@ function mapClick() {
     placeTower(g, selShop, c, r); selShop = null; return;
   }
   const di = LD[g.li].decor.findIndex(o => o.type === 'dev' && m.x >= o.c * TS - 10 && m.x < (o.c + 2) * TS + 10 && m.y >= MY + o.r * TS - 50 && m.y < MY + (o.r + 1) * TS);
-  if (di >= 0 && !towerAt(g, c, r)) { const o = LD[g.li].decor[di]; if (devSleeping(g, di, o)) { g.wake[di] = 25; sfx('alarmclock'); setTimeout(() => sfx('yawn'), 300); floatText(o.c * TS + 50, MY + o.r * TS - 40, 'Treziți-vă!', '#ffd84d', 16); } else { sfx('bonk'); floatText(o.c * TS + 50, MY + o.r * TS - 40, pick(['Lucrez, lucrez!', 'Las-mă, am deadline!', 'Merge la mine pe PC.', 'E doar un warning.']), '#cfe3ff', 13); } return; }
+  if (di >= 0 && !towerAt(g, c, r)) { const o = LD[g.li].decor[di]; if (devSleeping(g, di, o)) { g.wake[di] = 25; sfx('alarmclock'); setTimeout(() => sfx('yawn'), 300); floatText(o.c * TS + 50, MY + o.r * TS - 40, 'Trezește-te!', '#ffd84d', 16); } else { sfx('bonk'); floatText(o.c * TS + 50, MY + o.r * TS - 40, pick(['Lucrez, lucrez!', 'Las-mă, am deadline!', 'Merge la mine pe PC.', 'E doar un warning.']), '#cfe3ff', 13); } return; }
   if (!inb(c, r)) { selTower = null; return; }
   const t = towerAt(g, c, r);
   if (t) { selTower = selTower === t.id ? null : t.id; sfx('click'); } else selTower = null;
@@ -1693,7 +1767,7 @@ function demoSetup() {
   const li = Math.floor(Math.random() * NL), g = newGame(li, { demo: true }), d = LD[li], R = mulberry(9 + li);
   const near = [];
   for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (!d.blocked[r][c]) { let adj = false; for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) if (inb(c + a, r + b) && d.pathT[r + b][c + a]) adj = true; if (adj) near.push([c, r]); }
-  ['stapler', 'bubbles', 'printer', 'fan', 'firewall', 'coffee', 'slicer', 'vacuum', 'stapler', 'printer'].forEach((t, i) => { if (!near.length) return; const [c, r] = near.splice(Math.floor(R() * near.length), 1)[0]; g.towers.push(newTower(g, t, c, r, 1 + (i % 3))); });
+  ['stapler', 'bubbles', 'printer', 'digger', 'firewall', 'coffee', 'slicer', 'vacuum', 'stapler', 'printer'].forEach((t, i) => { if (!near.length) return; const [c, r] = near.splice(Math.floor(R() * near.length), 1)[0]; g.towers.push(newTower(g, t, c, r, 1 + (i % 3))); });
   return g;
 }
 function bgFull() { const s = Math.max(W / MW, H / MH) * 1.02; worldLayer(DG, 0, 0, W, H, s, (W - MW * s) / 2, (H - MH * s) / 2); }
@@ -1919,7 +1993,7 @@ function bestSpot(g, k) {
 function botBuild(g, strat) {
   for (let loops = 0; loops < 40; loops++) {
     const un = TORDER.filter(k => unlocked(g, k));
-    const pref = strat === 'naive' ? ['stapler'] : ['stapler', 'stapler', 'bubbles', 'printer', 'fan', 'firewall', 'coffee', 'slicer', 'vacuum', 'printer', 'stapler', 'firewall', 'slicer'];
+    const pref = strat === 'naive' ? ['stapler'] : ['stapler', 'stapler', 'bubbles', 'printer', 'digger', 'firewall', 'coffee', 'slicer', 'vacuum', 'printer', 'stapler', 'firewall', 'slicer'];
     const want = pref.filter(k => un.includes(k)), k = want[g.towers.length % want.length];
     const upg = g.towers.filter(t => t.lvl < 3).sort((a, b) => upCost(a) - upCost(b))[0];
     const doUp = () => { const c = upCost(upg); g.money -= c; upg.invest += c; upg.lvl++; };
