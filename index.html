@@ -29,7 +29,7 @@ canvas{position:fixed;left:0;top:0;display:block;touch-action:none}
 // =====================================================================
 //  PURCEL OVERFLOW — tower defense cu porci, un programator și Claude
 // =====================================================================
-const VERSION = 'v11.1';
+const VERSION = 'v11.2';
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 const TS = 50, COLS = 20, ROWS = 12, MY = 60, MW = 1000, MH = 600, PW = 280;
 const FB = '"Nunito","Segoe UI",system-ui,sans-serif', FM = 'Consolas,"Courier New",monospace';
@@ -95,7 +95,7 @@ const TOWERS = {
     desc: 'Rază mică, trage foarte repede într-un singur porc. Ieftin și bun aproape de hol.', ups: ['Capse mai grele: +60% daune.', 'Dublă capsare: trage în doi porci deodată.'] },
   printer: { cat: 'atk', name: 'Imprimantă', lvl: 1, cost: 170, range: 4.2, rate: 1.8, dmg: 20, splash: 1.0,
     desc: 'Rază foarte mare. Aruncă topuri de hârtie care lovesc tot grupul unde aterizează.', ups: ['Toner extra: +60% daune și rază mai mare.', 'Format A3: explozie mult mai mare.'] },
-  digger: { cat: 'atk', name: 'Săpătorul', lvl: 2, cost: 180, range: 2.1, rate: 1.8, dmg: 16, stun: 0.9,
+  digger: { cat: 'atk', name: 'Săpător', lvl: 2, cost: 180, range: 2.1, rate: 1.8, dmg: 16, stun: 0.9,
     desc: 'Un coleg musculos care sapă gropi pe hol. Porcii cad în ele, se lovesc și pierd timp.', ups: ['Gropi mai adânci: porcii stau mai mult jos și se lovesc mai tare.', 'Sapă mult mai repede, iar fiecare groapă prinde mai mulți porci.'] },
   firewall: { cat: 'atk', name: 'Firewall', lvl: 3, cost: 200, range: 1.5, dps: 27,
     desc: 'Arde continuu tot ce trece pe lângă el. Excelent pe colțurile holului.', ups: ['Ardere +60%.', 'Firewall enterprise: rază mai mare.'] },
@@ -474,7 +474,8 @@ const SFX = {
   stomp: t => { osc('sine', 75, t, 0.35, 0.9, null, 32); nz(t, 0.25, 0.5, 'lowpass', 220); },
   staple: t => { nz(t, 0.04, 0.22, 'highpass', 3000); osc('square', 1800, t, 0.03, 0.03); },
   paper: t => nz(t, 0.12, 0.2, 'bandpass', 2500, null, 0.8),
-  dig: t => { nz(t, 0.16, 0.16, 'lowpass', 700, null, 1.2); osc('triangle', 220, t, 0.08, 0.12, null, 110); nz(t + 0.07, 0.12, 0.08, 'highpass', 2500); },
+  fall: t => { osc('sine', 130, t, 0.14, 0.12, null, 60); },
+  dig: t => { osc('sine', 95, t, 0.16, 0.16, null, 55); nz(t + 0.02, 0.2, 0.05, 'lowpass', 320, null, 0.7); }, // lopată în pământ: un „bum” moale, fără pocnet
   thud: t => { osc('sine', 160, t, 0.12, 0.25, null, 70); nz(t, 0.1, 0.15, 'lowpass', 900); },
   fire: t => nz(t, 0.3, 0.08, 'lowpass', 900),
   whoosh: t => { nz(t, 0.5, 0.35, 'bandpass', 700, null, 0.8); nz(t + 0.1, 0.4, 0.2, 'bandpass', 1400, null, 1); },
@@ -1038,7 +1039,7 @@ function updateGame(g, dt) {
   if (g.pits && g.pits.length) { for (const pt of g.pits) { pt.t += dt; if (pt.hits.length >= pt.cap) continue;
       for (const p of g.pigs) { if (p.dead || p.lift > 0 || pt.hits.includes(p.id) || pt.hits.length >= pt.cap || Math.hypot(p.x - pt.x, p.y - pt.y) > 16 + 6 * PIGS[p.type].size) continue;
         pt.hits.push(p.id); curSrc = { k: 'digger', x: pt.x, y: pt.y }; damage(g, p, pt.dmg); curSrc = null;
-        if (!p.dead) { p.stun = Math.max(p.stun || 0, p.type === 'king' ? pt.stun * 0.35 : pt.stun); p.stunMax = p.stun; gsfx(g, 'thud', 0.08); } }
+        if (!p.dead) { p.stun = Math.max(p.stun || 0, p.type === 'king' ? pt.stun * 0.35 : pt.stun); p.stunMax = p.stun; gsfx(g, 'fall', 0.3); } }
       if (pt.hits.length >= pt.cap) pt.t = Math.max(pt.t, pt.max - 0.35); }
     g.pits = g.pits.filter(pt => pt.t < pt.max); }
   for (const p of g.pigs) if (p.type === 'manager' && !p.dead) for (const q of g.pigs) if (q !== p && Math.abs(q.x - p.x) < 75 && Math.abs(q.y - p.y) < 75) q.boost = PIGS.manager.aura;
@@ -1101,8 +1102,8 @@ function updateGame(g, dt) {
       } }
     } else if (t.type === 'digger') { // sapă o groapă chiar în fața porcului cel mai avansat din rază
       if (t.cd <= 0) { const tg = g.pigs.filter(p => targetable(p) && !(p.stun > 0) && Math.hypot(p.x - cx, p.y - cy) < R).sort((a, b) => b.dist - a.dist)[0];
-        if (tg) { const q = posAt(g.li, tg.path, tg.dist + Math.min(26, tg.spd * 0.4));
-          t.cd = T.rate * (t.lvl >= 3 ? 0.6 : 1) / rm; t.fx = 0.6; t.ang = Math.atan2(q.y - cy, q.x - cx); gsfx(g, 'dig', 0.15);
+        if (tg) { let q = posAt(g.li, tg.path, tg.dist + Math.min(26, tg.spd * 0.4)); if (Math.hypot(q.x - cx, q.y - cy) > R + 25) q = { x: tg.x, y: tg.y }; // nu sapă dincolo de lift / în afara razei
+          t.cd = T.rate * (t.lvl >= 3 ? 0.6 : 1) / rm; t.fx = 0.6; t.ang = Math.atan2(q.y - cy, q.x - cx); gsfx(g, 'dig', 0.45);
           (g.pits || (g.pits = [])).push({ x: q.x, y: q.y, t: 0, max: 3.2, cap: t.lvl >= 3 ? 5 : 3, hits: [], dmg: T.dmg * (t.lvl >= 2 ? 1.6 : 1) * t.buff, stun: T.stun * (t.lvl >= 2 ? 1.4 : 1), sx: cx, sy: cy });
           if (!g.sim) for (let i = 0; i < 7; i++) FX.push({ k: 'spark', x: q.x, y: q.y, vx: (Math.random() - 0.5) * 120, vy: -60 - Math.random() * 90, l: 0.45, m: 0.45, c: '#7a5232', s: 3 }); } }
     } else if (t.type === 'firewall') {
@@ -1171,7 +1172,7 @@ function updateGame(g, dt) {
 function drawDigger(ang, fx, time) {
   const k = fx > 0 ? clamp(fx / 0.6, 0, 1) : 0, sw = Math.sin(k * Math.PI), f = Math.cos(ang || 0) < 0 ? -1 : 1, br = Math.sin(time * 2.4) * 0.4;
   ctx.fillStyle = 'rgba(0,0,0,.28)'; ell(0, 18, 19, 5.5); ctx.fill();
-  ctx.save(); ctx.translate(0, 2); ctx.scale(f * 1.22, 1.22);
+  ctx.save(); ctx.translate(0, 4); ctx.scale(f * 1.06, 1.06);
   // movilă de pământ
   ctx.fillStyle = '#7a5232'; ell(13, 15, 8, 4); ctx.fill(); ctx.fillStyle = '#946640'; ell(12, 13.5, 5, 2.5); ctx.fill();
   // picioare (blugi) și bocanci
@@ -1346,7 +1347,7 @@ function drawRobot(t, time) {
   ctx.save(); ctx.translate(x, y); ctx.rotate(time * 20); ctx.strokeStyle = 'rgba(200,210,225,.7)'; ctx.lineWidth = 1.5; for (let i = 0; i < 3; i++) { ctx.rotate(Math.PI * 2 / 3); ctx.beginPath(); ctx.moveTo(10, 10); ctx.lineTo(18, 13); ctx.stroke(); } ctx.restore();
 }
 function towerDots(t, g) {
-  const cx = t.c * TS + 25, cy = MY + t.r * TS + (t.type === 'digger' ? -11 : 3);
+  const cx = t.c * TS + 25, cy = MY + t.r * TS + (t.type === 'digger' ? -4 : 3);
   for (let i = 0; i < 3; i++) {
     const x = cx - 8 + i * 8; let col = '#5b606c';
     if (i < t.lvl) col = '#ffd84d'; else if (i === t.lvl) col = g.money >= upCost(t) ? '#3fe07a' : '#5b606c';
