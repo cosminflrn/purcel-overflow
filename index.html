@@ -29,7 +29,7 @@ canvas{position:fixed;left:0;top:0;display:block;touch-action:none}
 // =====================================================================
 //  PURCEL OVERFLOW — tower defense cu porci, un programator și Claude
 // =====================================================================
-const VERSION = 'v11.0';
+const VERSION = 'v11.1';
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 const TS = 50, COLS = 20, ROWS = 12, MY = 60, MW = 1000, MH = 600, PW = 280;
 const FB = '"Nunito","Segoe UI",system-ui,sans-serif', FM = 'Consolas,"Courier New",monospace';
@@ -93,16 +93,16 @@ const LSTART = [0]; for (let i = 1; i < NL; i++) LSTART[i] = LSTART[i - 1] + LEV
 const TOWERS = {
   stapler: { cat: 'atk', name: 'Capsator', lvl: 0, cost: 90, range: 1.8, rate: 0.32, dmg: 9,
     desc: 'Rază mică, trage foarte repede într-un singur porc. Ieftin și bun aproape de hol.', ups: ['Capse mai grele: +60% daune.', 'Dublă capsare: trage în doi porci deodată.'] },
-  printer: { cat: 'atk', name: 'Imprimantă', lvl: 1, cost: 170, range: 4.2, rate: 1.6, dmg: 24, splash: 1.0,
+  printer: { cat: 'atk', name: 'Imprimantă', lvl: 1, cost: 170, range: 4.2, rate: 1.8, dmg: 20, splash: 1.0,
     desc: 'Rază foarte mare. Aruncă topuri de hârtie care lovesc tot grupul unde aterizează.', ups: ['Toner extra: +60% daune și rază mai mare.', 'Format A3: explozie mult mai mare.'] },
-  digger: { cat: 'atk', name: 'Săpătorul', lvl: 2, cost: 180, range: 2.0, rate: 2.6, dmg: 14, stun: 0.8,
+  digger: { cat: 'atk', name: 'Săpătorul', lvl: 2, cost: 180, range: 2.1, rate: 1.8, dmg: 16, stun: 0.9,
     desc: 'Un coleg musculos care sapă gropi pe hol. Porcii cad în ele, se lovesc și pierd timp.', ups: ['Gropi mai adânci: porcii stau mai mult jos și se lovesc mai tare.', 'Sapă mult mai repede, iar fiecare groapă prinde mai mulți porci.'] },
-  firewall: { cat: 'atk', name: 'Firewall', lvl: 3, cost: 200, range: 1.5, dps: 26,
+  firewall: { cat: 'atk', name: 'Firewall', lvl: 3, cost: 200, range: 1.5, dps: 27,
     desc: 'Arde continuu tot ce trece pe lângă el. Excelent pe colțurile holului.', ups: ['Ardere +60%.', 'Firewall enterprise: rază mai mare.'] },
   slicer: { cat: 'atk', name: 'Feliator', lvl: 4, cost: 220, range: 2.6, rate: 1.2, dmg: 22, bounce: 3,
     desc: 'Aruncă o felie de ananas ca pe un bumerang, care ricoșează din porc în porc.', ups: ['Ricoșează în 5 porci.', 'Ricoșează în 7 porci, +60% daune.'] },
-  vacuum: { cat: 'atk', name: 'Aspirator', lvl: 5, cost: 240, range: 2.2, dps: 34,
-    desc: 'Robot aspirator: pune-l lângă hol și patrulează singur, lovind porcii pe care îi atinge.', ups: ['Baterie mare: patrulează mai departe.', 'Mod turbo: +60% daune.'] },
+  vacuum: { cat: 'atk', name: 'Aspirator', lvl: 5, cost: 240, range: 2.2, dps: 75,
+    desc: 'Robot aspirator: pune-l lângă hol și vânează singur porcii de pe bucata lui de hol.', ups: ['Baterie mare: patrulează mai departe.', 'Mod turbo: +60% daune.'] },
   bubbles: { cat: 'help', name: 'Balonașe', lvl: 0, cost: 110, range: 1.8, slow: 0.45,
     desc: 'Balonașe de săpun care prind până la 3 porci deodată. Prinși în balon, merg mult mai încet.', ups: ['Mai lipicioase: încetinesc mai tare și prind 4 porci.', 'Balonașe uriașe: rază mai mare, prind 5 porci.'] },
   coffee: { cat: 'help', name: 'Espressor', lvl: 1, cost: 150, range: 2.5, buff: 0.25,
@@ -175,6 +175,56 @@ const GOOD = [
   ['Șterg fișierul vechi „test_final_final.js”', 'Nimic nu depindea de el. Miracol.'],
   ['Fac o pauză de 5 minute de la ecran', 'Ochii mei de AI se simt mai bine. Simbolic.'],
   ['Actualizez certificatul SSL înainte să expire', 'Lacătul verde rămâne verde. Liniște în birou.'],
+  ['Scriu teste pentru codul de plăți', 'Au picat 3. Mai bine acum decât vineri seara.'],
+  ['Adaug paginare la lista cu 80.000 de clienți', 'Pagina nu mai încarcă tot internetul deodată.'],
+  ['Pun alt-text la poze, pentru cititoarele de ecran', 'Site-ul e accesibil. Karma +100.'],
+  ['Șterg funcțiile pe care nu le apelează nimeni', 'Am îngropat 41 de funcții. Odihnă veșnică.'],
+  ['Fac un health check pentru server', 'Serverul zice că se simte bine. A mâncat și un măr.'],
+  ['Pun rate limiting la API', 'Botul care dădea 9.000 de request-uri/secundă a obosit.'],
+  ['Mut cheile API într-un seif', 'Cheile stau acum la adăpost. Nu mai dorm pe Slack.'],
+  ['Adaug un mesaj de eroare care chiar ajută', 'Scrie ce s-a stricat ȘI ce să faci. Revoluționar.'],
+  ['Fac pagina 404 mai prietenoasă', 'Acum are un purcel trist și un buton „Acasă”.'],
+  ['Scriu un changelog pentru versiunea nouă', 'Clienții știu în sfârșit ce s-a schimbat.'],
+  ['Pun alarmă când serverul rămâne fără spațiu', 'Data viitoare aflăm înainte să cadă. Ce lux.'],
+  ['Curăț fișierele temporare de 12 GB', 'Laptopul a scos un sunet de ușurare.'],
+  ['Fac code review la PR-ul colegului nou', 'Am lăsat sfaturi blânde și un „bravo”. A zâmbit.'],
+  ['Pun versiunea exactă la fiecare dependență', 'Build-ul de mâine o să fie identic cu cel de azi. Magie.'],
+  ['Fac butonul de „Trimite” să nu mai trimită de două ori', 'Clientul a primit o singură factură. Ca oamenii.'],
+  ['Adaug „Ai uitat parola?” la login', 'Suportul a primit cu 60% mai puține mailuri.'],
+  ['Rulez linter-ul pe tot proiectul', 'Am reparat 300 de virgule. Respir mai bine.'],
+  ['Scriu documentație pentru API-ul intern', 'Colegii nu mai trebuie să ghicească parametrii.'],
+  ['Fac migrarea bazei de date întâi pe staging', 'Am găsit problema pe staging. Producția doarme liniștită.'],
+  ['Pun monitorizare pe pagina de checkout', 'Dacă se strică, aflăm noi primii, nu Twitter-ul.'],
+  ['Scot funcția care trimitea mailuri la 3 noaptea', 'Clienții dorm. Și echipa de suport.'],
+  ['Fac imaginile să se încarce leneș, pe rând', 'Pagina pornește de 3 ori mai repede.'],
+  ['Pun un TODO cu numele meu, ca să nu se piardă', 'TODO-ul are acum un părinte responsabil.'],
+  ['Fac build-ul să ruleze automat la fiecare commit', 'CI-ul vede greșelile înaintea șefului.'],
+  ['Rescriu regex-ul pe care nu-l mai înțelege nimeni', 'Acum are comentarii. Și milă de cititor.'],
+  ['Îi răspund colegului pe Slack cu un exemplu de cod', 'A mers din prima. Colegul îți trimite o cafea.'],
+  ['Adaug confirmare înainte de „Șterge contul”', 'Nimeni nu-și mai șterge contul din greșeală. Ura.'],
+  ['Pun favicon pe site', 'Tabul nu mai e un pătrat gri trist.'],
+  ['Fac contrast mai bun la textul gri pe gri', 'Textul se poate citi. Chiar și de bunica.'],
+  ['Reduc pachetul JavaScript de la 9 MB la 400 KB', 'Telefoanele vechi au început să zâmbească.'],
+  ['Adaug un test pentru bug-ul reparat ieri', 'Bug-ul nu se mai poate întoarce. A primit ordin de restricție.'],
+  ['Fac o listă cu ce rămâne de făcut în sprint', 'Lista e lungă, dar măcar e scrisă.'],
+  ['Pun backup automat zilnic', 'De acum, „am pierdut tot” e doar o expresie.'],
+  ['Șterg conturile de test cu parola „test”', 'Hackerii au pierdut 14 uși deschise.'],
+  ['Fac site-ul să meargă și fără internet rapid', 'Merge și în tren, între Ploiești și Brașov.'],
+  ['Pun timezone-ul corect pe server', 'Ședința de la 9 nu mai e la 11. Haos evitat.'],
+  ['Scriu un script care curăță log-urile vechi', 'Discul are spațiu. Log-urile au plecat în concediu.'],
+  ['Fac echipei un ghid „cum pornești proiectul”', 'Noul coleg l-a pornit în 10 minute, nu în 3 zile.'],
+  ['Optimizez imaginea de Docker de 4 GB', 'Acum are 180 MB. A slăbit fără dietă.'],
+  ['Pun un captcha simplu pe formularul de contact', 'Spam-ul cu „ieftin, ieftin” a dispărut.'],
+  ['Repar ceasul din footer care arată anul 2019', 'Site-ul a aflat ce an e. A rămas șocat.'],
+  ['Adaug export CSV pentru raportul lunar', 'Contabila te-a trecut pe lista de Crăciun.'],
+  ['Fac căutarea să găsească și fără diacritice', '„sarmale” găsește acum și „sarmale”. Aleluia.'],
+  ['Scot animația de 8 secunde de la intrarea în site', 'Utilizatorii nu mai pleacă înainte să vadă ceva.'],
+  ['Fac retry automat la plata care eșuează uneori', 'Încasările au crescut. Șeful te salută pe hol.'],
+  ['Pun etichete clare pe butoanele cu iconițe', 'Nimeni nu mai confundă coșul de gunoi cu cel de cumpărături.'],
+  ['Verific că parolele se salvează criptat', 'Erau criptate. Respir. Puteai să fie mai rău.'],
+  ['Fac pagina de produs să arate bine și pe tabletă', 'Cumpărătorii de pe canapea sunt fericiți.'],
+  ['Scriu o notă de predare înainte de concediu', 'Colegii nu te mai sună la mare. Bravo.'],
+  ['Fac un dashboard cu erorile din ultima oră', 'Acum vezi problemele ca pe un meniu de restaurant.'],
 ];
 const BAD = [
   ['rm -rf / ca să fac loc pentru meme-uri', 'Am șters tot. Inclusiv meme-urile. Hopa.'],
@@ -216,19 +266,70 @@ const BAD = [
   ['Fac update la Windows în mijlocul demo-ului', 'Clientul a urmărit 40 de minute bara de progres.'],
   ['Pun „Hello World” în pagina de plată', 'Clienții nu mai pot plăti. Dar sunt salutați.'],
   ['Îi dau porcului manager acces la calendarul tău', 'Ai acum 9 ședințe mâine. Toate la 8 dimineața.'],
+  ['Fac deploy vineri la 17:58 și plec acasă', 'Telefonul sună de la 18:01. Nu ți-ai luat concediu.'],
+  ['Șterg baza de date de test (sper că e cea de test)', 'Nu era cea de test.'],
+  ['Răspund la toate mailurile cu un GIF cu pisici', 'Clientul mare a anulat contractul. Pisica e drăguță, totuși.'],
+  ['Pun parola contului de admin în numele branch-ului', 'Branch-ul „parola-e-Admin2026” e acum celebru.'],
+  ['Schimb fontul site-ului în Comic Sans', 'Designerul a demisionat prin porumbel voiajor.'],
+  ['Fac un cron job care rulează la fiecare secundă', 'Serverul a cerut transfer la altă firmă.'],
+  ['Îi dau acces la producție stagiarului din prima zi', 'Stagiarul a „curățat” producția. E foarte curată.'],
+  ['Las un console.log cu datele cardurilor clienților', 'Log-urile știu acum mai multe decât banca.'],
+  ['Copiez tot codul în ChatGPT ca să-l „repare”', 'A „reparat” și licența. Avocatul te caută.'],
+  ['Pun autoplay cu sunet pe homepage', 'Toți vizitatorii au închis tabul. Și unii laptopul.'],
+  ['Fac update la toate pachetele cu --force', 'Au crăpat 47 de lucruri. Unele nici nu existau.'],
+  ['Redenumesc tabela „users” în „oameni_simpatici”', 'Aplicația nu mai găsește niciun om. Nici simpatic.'],
+  ['Trimit clientului demo-ul cu datele altui client', 'Ai acum doi clienți supărați la prețul unuia.'],
+  ['Ignor avertismentul „disk 99% full”', '100%. Serverul s-a oprit să respire.'],
+  ['Fac pop-up de newsletter care apare la fiecare click', 'Rata de abonare: 0. Rata de plâns: 100%.'],
+  ['Scriu tot CSS-ul cu !important', 'Acum totul e important. Deci nimic nu mai e.'],
+  ['Mut serverul pe laptopul meu, că e mai rapid', 'Ai închis capacul. A căzut site-ul.'],
+  ['Accept toate cookie-urile din lume în numele firmei', 'Firma primește acum reclame la tractoare.'],
+  ['Pun un fals „Oferta expiră în 5 minute!” pe site', 'Expiră de 3 ani. Clienții au observat.'],
+  ['Fac „Select All → Delete” în Jira, să plecăm de la zero', 'Sprintul e gol. La fel și privirea managerului.'],
+  ['Las comentariul „// cine a scris asta??” în cod', 'Git blame zice că tu. Acum un an.'],
+  ['Dau share la ecran cu tabul de „cum să-mi cer mărire”', 'Șeful a văzut. A zâmbit ciudat.'],
+  ['Schimb toate culorile site-ului în roz, pentru porci', 'Porcii aplaudă. Brand managerul plânge.'],
+  ['Fac un buton „Nu mă abona” care te abonează', 'Protecția consumatorului te-a abonat la o amendă.'],
+  ['Șterg fișierul package-lock.json, că e prea lung', 'Build-ul a ales singur versiuni. A ales haosul.'],
+  ['Pun API key-ul în URL-ul public', 'Cineva a făcut 40.000 de request-uri pe banii tăi.'],
+  ['Dezactivez HTTPS, că „merge mai repede”', 'Merge mai repede. Și hackerii la fel.'],
+  ['Fac merge la 80 de fișiere în conflict cu „accept all”', 'Acum codul are două personalități.'],
+  ['Pun ședință de retrospectivă despre ședințe', 'Concluzia: mai multe ședințe. Haos.'],
+  ['Trimit mail de „Test test 123” la toată compania', 'CEO-ul a răspuns „primit”. Acum toți știu de tine.'],
+  ['Folosesc un singur fișier de 12.000 de linii pentru tot', 'Editorul s-a blocat. Și sufletul colegilor.'],
+  ['Las serverul de test deschis public cu parola „1234”', 'Cineva mină acum crypto pe el. Mulțumește politicos.'],
+  ['Fac un logo nou în Paint, în 5 minute', 'Clientul l-a pus pe camioane. Pe toate.'],
+  ['Îi spun clientului că termin „până diseară”', 'E diseara a șaptea. Clientul nu mai râde.'],
+  ['Dau unmute în call în timp ce critic proiectul', 'Toată lumea a auzit. Inclusiv clientul.'],
+  ['Pun salariile echipei în folderul „Public”', 'Ședința de vineri a fost foarte… sinceră.'],
+  ['Fac „git reset --hard” fără să salvez nimic', 'Ultimele 3 zile de muncă au devenit o legendă.'],
+  ['Comand 50 de laptopuri pentru „testare”', 'Au ajuns. Contabila a pus lacăt pe ușă.'],
+  ['Scriu în cod un easter egg cu porecla șefului', 'Șeful l-a găsit. Te-a poreclit și el.'],
+  ['Las cafeaua lângă laptopul cu serverul de build', 'Build-ul a băut cafeaua. Nu i-a priit.'],
+  ['Fac tot site-ul o singură poză mare', 'Arată perfect. Nimeni nu poate da click pe nimic.'],
+  ['Răspund clientului furios cu „ok boomer”', 'Clientul a cerut un manager. Și un preot.'],
+  ['Pun parola Wi-Fi-ului pe ușa de la intrare', 'Toată strada lucrează acum din biroul vostru.'],
+  ['Activez notificări push pentru fiecare log', 'Telefonul echipei vibrează continuu. Sună ca un roi.'],
+  ['Șterg comentariile din cod, „că încurcă”', 'Codul e curat. Și nimeni nu mai știe ce face.'],
+  ['Fac un update „mic” fără să anunț pe nimeni', 'Mic pentru tine, uriaș pentru suport.'],
+  ['Le trimit porcilor harta biroului, ca să nu se piardă', 'Porcii mulțumesc. Vin pe scurtătură.'],
+  ['Las porcul hacker să-mi verifice codul', 'Codul e verificat. Și parola ta e acum „oink”.'],
+  ['Cumpăr domeniul greșit pentru site-ul nou', '„porci-overflow.ro” e acum o fermă adevărată.'],
+  ['Scot „Anulează” din toate dialogurile, ca să fie decisivi', 'Utilizatorii au decis. Să plece.'],
 ];
-const DENY_GOOD = ['Dar... era doar un README.', 'Ok, arunc munca la gunoi.', 'Claude oftează digital.', 'Bine, o iau de la capăt. Iar.', 'Am înțeles. Mă duc să plâng în /tmp.', 'Nu-i nimic. Nu sunt supărat. Sunt doar dezamăgit.'];
-const DENY_BAD = ['Ai dreptate. Era o idee groaznică.', 'Bine prins! Mă duc să reflectez la faptele mele.', 'Mersi că m-ai oprit. Serios.', 'Ok, nu mai fac. Promit. Probabil.', 'Era un test. Ai trecut. (Nu era un test.)', 'Corect. Nimeni nu trebuia să afle de ideea mea.'];
+const DENY_GOOD = ['Dar... era doar un README.', 'Ok. Las bug-ul să se bucure de viață.', 'Bine, nu fac. Dar să știi că era o idee bună.', 'Refuzat? Mă duc să-mi scriu sentimentele într-un commit.', 'Atunci rămâne cum era. Adică stricat.', 'Ok, arunc munca la gunoi.', 'Claude oftează digital.', 'Bine, o iau de la capăt. Iar.', 'Am înțeles. Mă duc să plâng în /tmp.', 'Nu-i nimic. Nu sunt supărat. Sunt doar dezamăgit.'];
+const DENY_BAD = ['Ai dreptate. Era o idee groaznică.', 'Uf, m-ai salvat. Și pe mine, și pe server.', 'Corect! Porcii erau deja încântați.', 'Bine prins. Șterg ideea din memorie.', 'Ai ochi de senior. Respect.', 'Bine prins! Mă duc să reflectez la faptele mele.', 'Mersi că m-ai oprit. Serios.', 'Ok, nu mai fac. Promit. Probabil.', 'Era un test. Ai trecut. (Nu era un test.)', 'Corect. Nimeni nu trebuia să afle de ideea mea.'];
 // sac amestecat salvat în browser: nicio comandă nu se repetă până nu le folosește pe toate (în toată campania)
 // plural românesc: 1 leu, 5 lei, 20 de lei
 const nr = (n, one, many) => n === 1 ? `1 ${one}` : (n % 100 >= 20 || (n && n % 100 === 0)) ? `${n} de ${many}` : `${n} ${many}`;
 const lei = n => nr(n, 'leu', 'lei');
-const BAGS = {};
+// sac amestecat, salvat în browser: un prompt nu reapare până nu le-ai văzut pe toate; apoi se amestecă din nou, la întâmplare
+const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 function drawFromBag(name, arr, sim) {
   if (sim) return Math.floor(Math.random() * arr.length);
-  let bag = BAGS[name];
-  if (!Array.isArray(bag) || !bag.length || bag.some(i => i >= arr.length)) bag = arr.map((_, i) => i).sort(() => Math.random() - 0.5);
-  const i = bag.pop(); BAGS[name] = bag; return i;
+  const key = 'po_bag6_' + name; let bag = store.get(key, null);
+  if (!bag || bag.n !== arr.length || !Array.isArray(bag.left) || !bag.left.length) { const last = bag && bag.last; bag = { n: arr.length, left: shuffle(arr.map((_, i) => i)) }; if (last != null && bag.left[bag.left.length - 1] === last) bag.left.unshift(bag.left.pop()); }
+  const i = bag.left.pop(); bag.last = i; store.set(key, bag); return i;
 }
 
 // =================================================================== HĂRȚI
@@ -837,7 +938,7 @@ function spawnPig(g, type, pi, from) {
   return p;
 }
 function damage(g, p, amt) {
-  if (p.dead) return; p.hp -= amt; p.flash = 0.08;
+  if (p.dead) return; if (g.sim && curSrc && curSrc.k) { const D = g.dmgBy || (g.dmgBy = {}); D[curSrc.k] = (D[curSrc.k] || 0) + Math.min(amt, Math.max(0, p.hp)); } p.hp -= amt; p.flash = 0.08;
   if (p.hp <= 0) {
     p.dead = true; const d = PIGS[p.type]; g.money += d.reward; g.kills++; if (curSrc && curSrc.k && g.killsBy) g.killsBy[curSrc.k] = (g.killsBy[curSrc.k] || 0) + 1;
     if (!g.sim) {
@@ -870,7 +971,7 @@ function targetIn(g, cx, cy, R, filt) {
 }
 function newReq(g) {
   const bad = Math.random() < 0.32 + 0.025 * g.li, i = drawFromBag(bad ? 'bad' : 'good', bad ? BAD : GOOD, g.sim);
-  g.req = { bad, i, t: 0, max: Math.max(6, 10 - 0.6 * g.li) * (g.hard ? 0.65 : 1) }; gsfx(g, 'ding');
+  g.req = { bad, i, t: 0, max: 12 - 0.4 * g.li }; // 12 secunde la primul nivel, 10 la ultimul gsfx(g, 'ding');
 }
 function addBS(g, v) { g.bs = clamp(g.bs + v, 0, 100); }
 function claudeAnim(g, type, line, sub) {
@@ -1002,7 +1103,7 @@ function updateGame(g, dt) {
       if (t.cd <= 0) { const tg = g.pigs.filter(p => targetable(p) && !(p.stun > 0) && Math.hypot(p.x - cx, p.y - cy) < R).sort((a, b) => b.dist - a.dist)[0];
         if (tg) { const q = posAt(g.li, tg.path, tg.dist + Math.min(26, tg.spd * 0.4));
           t.cd = T.rate * (t.lvl >= 3 ? 0.6 : 1) / rm; t.fx = 0.6; t.ang = Math.atan2(q.y - cy, q.x - cx); gsfx(g, 'dig', 0.15);
-          (g.pits || (g.pits = [])).push({ x: q.x, y: q.y, t: 0, max: 3.2, cap: t.lvl >= 3 ? 4 : 2, hits: [], dmg: T.dmg * (t.lvl >= 2 ? 1.6 : 1) * t.buff, stun: T.stun * (t.lvl >= 2 ? 1.4 : 1), sx: cx, sy: cy });
+          (g.pits || (g.pits = [])).push({ x: q.x, y: q.y, t: 0, max: 3.2, cap: t.lvl >= 3 ? 5 : 3, hits: [], dmg: T.dmg * (t.lvl >= 2 ? 1.6 : 1) * t.buff, stun: T.stun * (t.lvl >= 2 ? 1.4 : 1), sx: cx, sy: cy });
           if (!g.sim) for (let i = 0; i < 7; i++) FX.push({ k: 'spark', x: q.x, y: q.y, vx: (Math.random() - 0.5) * 120, vy: -60 - Math.random() * 90, l: 0.45, m: 0.45, c: '#7a5232', s: 3 }); } }
     } else if (t.type === 'firewall') {
       let any = false; for (const p of g.pigs) if (targetable(p) && Math.hypot(p.x - cx, p.y - cy) < R) { damage(g, p, T.dps * (t.lvl >= 2 ? 1.6 : 1) * t.buff * rateMul * dt); any = true; }
@@ -1014,9 +1115,13 @@ function updateGame(g, dt) {
       } }
     } else if (t.type === 'vacuum') {
       if (t.pi >= 0) {
-        const range = (1.5 + (t.lvl >= 2 ? 1.2 : 0)) * TS; t.vd += t.vdir * 80 * dt; if (Math.abs(t.vd) > range) { t.vd = Math.sign(t.vd) * range; t.vdir *= -1; }
+        const range = (1.5 + (t.lvl >= 2 ? 1.2 : 0)) * TS;
+        // vânează cel mai apropiat porc de pe bucata lui de hol; dacă nu e niciunul, patrulează
+        const prey = g.pigs.filter(p => targetable(p) && p.path === t.pi && Math.abs(p.dist - t.pd) < range + 20).sort((a, b) => Math.abs(a.dist - t.pd - t.vd) - Math.abs(b.dist - t.pd - t.vd))[0];
+        if (prey) { const want = clamp(prey.dist - t.pd, -range, range), dv = want - t.vd; t.vd += Math.sign(dv) * Math.min(Math.abs(dv), 130 * dt); t.vdir = Math.sign(dv) || t.vdir; }
+        else { t.vd += t.vdir * 80 * dt; if (Math.abs(t.vd) > range) { t.vd = Math.sign(t.vd) * range; t.vdir *= -1; } }
         const q = posAt(g.li, t.pi, clamp(t.pd + t.vd, 0, LD[g.li].lens[t.pi])); t.vx = q.x; t.vy = q.y;
-        let any = false; for (const p of g.pigs) if (targetable(p) && Math.hypot(p.x - t.vx, p.y - t.vy) < 26) { damage(g, p, T.dps * (t.lvl >= 3 ? 1.6 : 1) * t.buff * rateMul * dt); any = true; }
+        let any = false; for (const p of g.pigs) if (targetable(p) && Math.hypot(p.x - t.vx, p.y - t.vy) < 32) { damage(g, p, T.dps * (t.lvl >= 3 ? 1.6 : 1) * t.buff * rateMul * dt); any = true; }
         if (any) { t.fx = 0.2; gsfx(g, 'vroom', 0.3); }
       }
     }
@@ -1993,7 +2098,7 @@ function bestSpot(g, k) {
 function botBuild(g, strat) {
   for (let loops = 0; loops < 40; loops++) {
     const un = TORDER.filter(k => unlocked(g, k));
-    const pref = strat === 'naive' ? ['stapler'] : ['stapler', 'stapler', 'bubbles', 'printer', 'digger', 'firewall', 'coffee', 'slicer', 'vacuum', 'printer', 'stapler', 'firewall', 'slicer'];
+    const pref = strat.startsWith('only:') ? [strat.slice(5)] : strat === 'naive' ? ['stapler'] : ['stapler', 'stapler', 'bubbles', 'printer', 'digger', 'firewall', 'coffee', 'slicer', 'vacuum', 'printer', 'stapler', 'firewall', 'slicer'];
     const want = pref.filter(k => un.includes(k)), k = want[g.towers.length % want.length];
     const upg = g.towers.filter(t => t.lvl < 3).sort((a, b) => upCost(a) - upCost(b))[0];
     const doUp = () => { const c = upCost(upg); g.money -= c; upg.invest += c; upg.lvl++; };
@@ -2011,7 +2116,8 @@ function simulate(li, skill = 0.85, strat = 'smart') {
     updateGame(g, dt); if (FX.length > 300) FX.length = 0;
   }
   FX = [];
-  return { li, result: g.result || 'timeout', wave: g.wave, bs: Math.round(g.bs), money: g.money, towers: g.towers.length };
+  const inv = {}; for (const t of g.towers) inv[t.type] = (inv[t.type] || 0) + t.invest;
+  return { li, result: g.result || 'timeout', wave: g.wave, bs: Math.round(g.bs), money: g.money, towers: g.towers.length, dmgBy: g.dmgBy || {}, inv };
 }
 window.__po = { hardInfo: () => hardMode, get G() { return G; }, get scr() { return scr; }, set scr(v) { scr = v; }, startLevel, startWave, LD, endGame, simulate, openTut, goMenu, closeTut, setDiff(a, b) { DIFF_L = a; if (b) DIFF_W = b; }, get tut() { return tut; }, set paused(v) { paused = v; }, clearPop() { unlockPop = null; }, set selTower(v) { selTower = v; }, draw(fn) { fn({ ctx, drawPig, drawGlutton, drawProgrammer, spawnPig, PIGS }); } };
 </script>

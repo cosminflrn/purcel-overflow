@@ -32,7 +32,7 @@ Pune capcane lângă hol, ține bullshit-ul jos și ai grijă ce aprobi când Cl
 - ⏸️ **Pauză automată** când schimbi tabul; muzica merge mai departe și la pauză (o oprești din butonul de sunet)
 - 🐖 **10 tipuri de porci**, de la Porcul de birou până la Porcul Rege, care face pământul să tremure
 - 💥 **Fiecare capcană are animația ei** când doboară un porc. Uneori sare și câte o friptură
-- 🤖 **Claude Code** cere aprobare pentru comenzi. Aprobi ce e util, refuzi prostiile, iar bara de bullshit îți spune cum te descurci
+- 🤖 **Claude Code** cere aprobare pentru aproape 180 de comenzi amuzante, care nu se repetă până nu le vezi pe toate. Aprobi ce e util, refuzi prostiile, iar bara de bullshit îți spune cum te descurci
 - 🎵 **Muzică și sunete** diferite pe fiecare nivel, generate în întregime din cod
 - 📱 **Merge pe orice ecran**: desktop, tabletă sau telefon. Pe telefon ocupă tot ecranul, iar butoanele stau departe de notch și de colțurile rotunjite
 
@@ -45,7 +45,7 @@ Tot jocul stă într-un singur fișier, [`index.html`](index.html), scris în **
 - **Grafica** e desenată din cod pe un `<canvas>` HTML5, la fiecare cadru: porcii, programatorii, capcanele, hărțile și animațiile.
 - **Muzica și efectele sonore** sunt sintetizate în timp real cu **Web Audio API**: oscilatoare, zgomot filtrat și un mic secvențiator pentru melodii.
 - **Fontul** e [Nunito](https://fonts.google.com/specimen/Nunito), ales pentru diacriticele românești.
-- **Progresul** se salvează în `localStorage`, în browser: doar hărțile deblocate și volumul. Fiecare nivel reluat pornește ca la prima joacă.
+- **Progresul** se salvează în `localStorage`, în browser: hărțile deblocate, volumul și ce comenzi Claude ai văzut deja (ca să nu se repete până nu le vezi pe toate). Fiecare nivel reluat pornește ca la prima joacă.
 - **Hostingul** e gratuit, pe GitHub Pages. Fiecare push pe `main` actualizează jocul.
 - **Balansul** a fost testat cu un bot care joacă singur nivelele în browser (Playwright), cu strategii „deștepte” și „naive”.
 
@@ -53,11 +53,12 @@ Jocul a fost construit de Cosmin împreună cu Claude, pornind de la un `.exe` s
 
 ## Versiuni
 
-Versiunea curentă apare în colțul din dreapta-jos al meniului. Fiecare versiune are și o ramură salvată (`versiune-v1.0` … `versiune-v11.0`).
+Versiunea curentă apare în colțul din dreapta-jos al meniului. Fiecare versiune are și o ramură salvată (`versiune-v1.0` … `versiune-v11.1`).
 
 | Versiune | Ce a adus |
 |---|---|
-| **v11.0** | Săpătorul în loc de Ventilator, drumul vine de la marginea ecranului și intră sub biroul programatorului, fundal complet pe ecrane foarte late, butoane cu culori vii, confirmare în doi pași la „Reia runda” / „Reia nivelul”, ultimul nivel apare „Gata”, muzica merge și la pauză, buton de fullscreen mereu vizibil cu explicație pe iPhone |
+| **v11.1** | Rebalansare: Săpătorul mai rapid și mai puternic, Imprimanta mai slabă, Aspiratorul vânează porcii; aproape 100 de comenzi Claude noi, care nu se mai repetă nici după reload; mai mult timp să-i răspunzi lui Claude (12 secunde) |
+| v11.0 | Săpătorul în loc de Ventilator, drumul vine de la marginea ecranului și intră sub biroul programatorului, fundal complet pe ecrane foarte late, butoane cu culori vii, confirmare în doi pași la „Reia runda” / „Reia nivelul”, ultimul nivel apare „Gata”, muzica merge și la pauză, buton de fullscreen mereu vizibil cu explicație pe iPhone |
 | v10.2 | Reparații: la 2x, Claude, mesajele și statistica de timp merg în timp real; „Reia runda” îți dă din nou timp de pregătire; scurtături pe desktop (Esc/P pauză, Space pornește runda, F viteză 2x); bot de test mai corect |
 | v10.1 | Sfatul lui Claude la game over: comenzi periculoase aprobate, răspunsuri întârziate, bani necheltuiți, traseul pe care au trecut cei mai mulți porci |
 | v10.0 | Statistici la final de nivel, buton 2x, „Reia runda” / „Reia nivelul” în pauză, panou de upgrade mai aerisit, sunete noi (cronometru, upgrade maxim, porc nou, bonus de viteză), margine mai mică în dreapta pe telefon |
